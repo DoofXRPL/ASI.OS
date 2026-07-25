@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/*
+ * ASI OS design tokens.
+ *
+ * Calm by default, intense only when necessary. Colour is rationed and carries
+ * meaning: blue is the system thinking, amber means something needs you, sage
+ * means confirmed or healthy, red means something failed. Nothing is coloured
+ * for decoration, so when colour appears it can be trusted to mean something.
+ *
+ * Machine facts — timestamps, identifiers, counts — are set in mono so they read
+ * as data rather than prose.
+ */
+@theme {
+  --color-void: #08090b;
+  --color-surface: #0e1014;
+  --color-raised: #14171d;
+  --color-line: #1e232b;
+  --color-line-strong: #2b323d;
+
+  --color-ink: #e8ebef;
+  --color-ink-muted: #98a1ac;
+  --color-ink-faint: #6a737f;
+
+  --color-accent: #5b9cff;
+  --color-accent-dim: #23334f;
+  --color-attention: #e0a458;
+  --color-attention-dim: #3d2f1c;
+  --color-confirmed: #6fbf9b;
+  --color-confirmed-dim: #1c322a;
+  --color-danger: #e2686b;
+  --color-danger-dim: #3a1f21;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+
+  --radius-card: 0.625rem;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  background-color: var(--color-void);
+}
+
+body {
+  background-color: var(--color-void);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Keyboard users must always be able to see where they are. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Motion conveys state; it is never entertainment, and it is always optional. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+::selection {
+  background-color: var(--color-accent-dim);
+  color: var(--color-ink);
+}
