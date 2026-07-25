@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "./database.types";
+import { getDevSignIn } from "@/lib/auth/dev-sign-in";
 import { getSupabaseEnv } from "./env";
 
 export interface ProxySessionResult {
@@ -47,6 +48,30 @@ export async function updateSession(
 
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) {
+    // No session. In development, and only when credentials were supplied
+    // deliberately, create one instead of sending the reader to a form they
+    // will fill in identically every time.
+    //
+    // This is a real sign-in: the cookies it sets are the cookies the form
+    // would have set, so nothing downstream is bypassed and Row Level Security
+    // still answers as this user. It fails closed — if the credentials are
+    // wrong there is no session and the request is treated exactly as it was
+    // before.
+    const devSignIn = getDevSignIn();
+    if (devSignIn) {
+      const attempt = await supabase.auth.signInWithPassword(devSignIn);
+      if (attempt.data.user) {
+        return {
+          response,
+          user: {
+            id: attempt.data.user.id,
+            email: attempt.data.user.email ?? null,
+          },
+          configured: true,
+        };
+      }
+    }
+
     return { response, user: null, configured: true };
   }
 

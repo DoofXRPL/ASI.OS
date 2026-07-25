@@ -61,6 +61,13 @@ Without them the app still builds and runs, every private route redirects to
 `/login`, and `/login` names the missing variables. That is the intended
 fail-closed behaviour — do not "fix" it by defaulting open.
 
+To skip the sign-in screen while developing, set `ASI_DEV_SIGN_IN_EMAIL` and
+`ASI_DEV_SIGN_IN_PASSWORD`. This does not disable authentication — it cannot,
+because RLS answers as somebody and an app with no caller is empty rather than
+open. It performs a real sign-in in `proxy.ts`, so the session, the cookies and
+the RLS boundary are all unchanged. It is inert in a production build and the
+account panel states when it is active. See `lib/auth/dev-sign-in.ts`.
+
 ## Running the RLS tests without Docker
 
 The suite needs only PostgreSQL 14+, not the Supabase stack:
