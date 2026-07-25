@@ -17,16 +17,24 @@ works.
 
 ## Current state
 
-**Phase 0 is complete. Phases 1–5 are not started.** The roadmap is in
-[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). Do not implement a later
-phase unless asked.
+**Phase 0 is complete. Phase 1 is partly complete. Phases 2–5 are not started.**
+The roadmap is in [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). Do
+not implement a later phase unless asked.
 
-Phase 0 contains **no AI layer, no integrations, and no external network calls** by
+There is still **no AI layer, no integrations, and no external network calls** by
 design.
 
-Working surfaces: `/today`, `/activity`, `/settings`. Inbox, Projects, Decisions,
-Memory and Connections do not exist yet and must not be added as empty shells — see
+Working surfaces: `/today`, `/inbox`, `/projects`, `/projects/[id]`, `/activity`,
+`/settings`. Decisions, Memory and Connections do not exist yet and must not be
+added as empty shells — see
 [ADR 0002](docs/DECISIONS/0002-navigation-earns-its-place.md).
+
+Shipped in Phase 1 so far: capture with the original text preserved by
+privilege; four ways out of the inbox; projects with an outcome, a status, a
+next action and a required reason when blocked; and a Today derived from those
+rows. Still to come in Phase 1: `tasks` and `notes`
+([ADR 0003](docs/DECISIONS/0003-projects-hold-the-next-action.md) explains why
+they are not here yet), `people`, and export/delete in Settings.
 
 ## Commands
 
@@ -95,7 +103,16 @@ Use a tmux session for long-running servers in Cloud Agent VMs.
 9. **A `"use server"` file may only export async functions.** Put shared state
    constants in a sibling module — see `lib/auth/form-state.ts`.
 10. **Audit writes must never break the operation they describe,** and must record
-    what actually changed, not what might have.
+    what actually changed, not what might have. Where nothing changed, write
+    nothing: a trail that logs saves rather than changes becomes a record of who
+    clicked.
+11. **A read that fails says so.** Query helpers return `ReadResult<T>` and
+    pages render `Failed`. Returning an empty list on error makes a broken
+    database look like an empty account, which is the more damaging of the two
+    to get wrong.
+12. **Derived output must name its evidence.** Anything Today asserts comes from
+    a pure function in `lib/derive/` and carries the id of a row it was given.
+    Never invent a deadline, a priority, a score, or the word "urgent".
 
 ## Conventions
 

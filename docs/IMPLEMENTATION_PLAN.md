@@ -1,9 +1,18 @@
 # ASI OS — Implementation Plan
 
 > Approved plan of record for ASI OS (Adaptive Systems Interface).
-> Phase 0 is implemented; Phases 1-5 are not started. Update this document when
-> the plan changes, and record every consequential deviation as an ADR under
-> `docs/DECISIONS/`.
+> Phase 0 is implemented. Phase 1 is partly implemented: Inbox capture and
+> processing, Projects, a deterministic Today and audit coverage of every
+> mutation have shipped; `tasks`, `notes`, `people` and export/delete have not.
+> Phases 2-5 are not started. Update this document when the plan changes, and
+> record every consequential deviation as an ADR under `docs/DECISIONS/`.
+>
+> Deviations so far: [ADR 0002](DECISIONS/0002-navigation-earns-its-place.md)
+> (no empty shells in the navigation),
+> [ADR 0003](DECISIONS/0003-projects-hold-the-next-action.md) (a project holds
+> its next action; no `tasks` table yet),
+> [ADR 0004](DECISIONS/0004-capture-is-preserved-by-privilege.md) (captured text
+> is immutable, and nothing in Phase 1 is deletable).
 
 At the time this plan was written, repository `DoofXRPL/ASI.OS` contained only `LICENSE` and a two-line `README.md` on `main` (commit `2e4b7ec`). This is a genuine greenfield build. Northstar (`northstar-capital-superbase/Superbase`) was publicly accessible and inspected read-only in full; findings are folded in below.
 
@@ -301,7 +310,7 @@ Banned: fabricated numbers, "coming soon" nav items, unwired controls, decorativ
 ## 15. Phased implementation roadmap
 
 - **Phase 0 — Foundation and security spine.** Scaffold, Tailwind + tokens, Supabase local + first migration (`profiles`, `user_settings`, `activity_events`), auth + middleware + owner guard, app shell with real nav, empty honest pages, CI, RLS harness with two users, `docs/PRINCIPLES.md` + `AGENTS.md` + `.env.example`.
-- **Phase 1 — Manual system of record (no AI).** Inbox capture and processing; Projects with outcome / status / next action / blockers / tasks / notes / people; Today derived **deterministically** from real rows; Activity logging user actions; Settings identity + export/delete. **The product is genuinely useful here with zero AI and zero integrations.**
+- **Phase 1 — Manual system of record (no AI).** Inbox capture and processing; Projects with outcome / status / next action / blockers / tasks / notes / people; Today derived **deterministically** from real rows; Activity logging user actions; Settings identity + export/delete. **The product is genuinely useful here with zero AI and zero integrations.** *Shipped: capture and its four processing routes, projects with outcome/status/next action/blocker, deterministic Today, audit coverage of every mutation. Outstanding: tasks, notes, people, and export/delete.*
 - **Phase 2 — The loop.** `lib/ai` facade, Coordinator, output contract, evidence resolution, recommendations on Today, four-verb approval, decisions, internal action registry with Undo, Decisions page, full audit. Memory candidates captured but inert.
 - **Phase 3 — Memory.** Memory page with three tabs, Confirm / Correct / Forget, revision history, retrieval feeding the Coordinator, "memories used" on every recommendation, `times_used` tracking.
 - **Phase 4 — Briefing and Ask.** Streaming narrative daily briefing (generated once per day, stored, regenerable), a ⌘K command palette, and an Ask surface that returns the *same* structured contract — never a bare chat reply.

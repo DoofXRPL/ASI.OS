@@ -1,6 +1,7 @@
 # ASI OS — Data model
 
-Phase 0 defines three tables. The rules below apply to every table added later.
+Five tables: three from Phase 0 that describe the system, and two from Phase 1
+that describe your work. The rules below apply to every table added later.
 
 ## Rules for every user-owned table
 
@@ -103,9 +104,76 @@ and `authenticated` so it is reachable only by the trigger. Every function pins
 `search_path` so a schema earlier in a caller's path cannot shadow the objects it
 resolves; the RLS suite asserts this for every function.
 
+## `projects`
+
+What you are trying to make true, and the one action that moves it forward.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | primary key |
+| `user_id` | uuid | not null, FK to `auth.users` |
+| `name` | text | not null, 1–120 characters, never blank |
+| `outcome` | text | nullable — what will be true when this is done |
+| `next_action` | text | nullable, ≤280 — null means you do not yet know |
+| `status` | text | one of `active`, `paused`, `blocked`, `done`, `abandoned` |
+| `blocked_reason` | text | nullable, ≤500 |
+| `last_touched_at` | timestamptz | set by the application, never by a trigger |
+| `created_at` / `updated_at` | timestamptz | `updated_at` maintained by trigger |
+
+- **A blocked project must say why, and only a blocked project may carry a
+  reason.** `check ((status = 'blocked') = (blocked_reason is not null))`
+  enforces both halves. The second half matters as much as the first: a reason
+  left behind after unblocking is a stale sentence waiting to be rendered as
+  though it were current.
+- **Blank is not a value.** Every nullable text column rejects whitespace-only
+  input, so "no next action" has exactly one representation.
+- **There is no DELETE policy or privilege.** Abandoning is a status. Losing the
+  record of what you were trying to do would contradict the Remember stage.
+- `unique (user_id, id)` exists as the target of the composite foreign key on
+  `inbox_items`.
+- See [ADR 0003](DECISIONS/0003-projects-hold-the-next-action.md) for why there
+  is no `tasks` table yet.
+
+## `inbox_items`
+
+Captured input, preserved exactly as it was written.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | primary key |
+| `user_id` | uuid | not null, FK to `auth.users` |
+| `content` | text | not null, 1–4000 characters, **not updatable** |
+| `kind` | text | nullable — `note`, `task`, `idea`, `question`, `link` |
+| `status` | text | `unprocessed`, `processed`, `archived` |
+| `project_id` | uuid | nullable, composite FK — see below |
+| `processed_into` | text | `project`, `project_next_action`, `project_material`, `archived` |
+| `processed_at` | timestamptz | nullable |
+| `source` | text | not null, default `manual`, **not updatable** |
+| `created_at` / `updated_at` | timestamptz | |
+
+- **The text cannot be rewritten.** `content` carries no UPDATE privilege, so
+  "the original input is preserved" is enforced by the database rather than
+  promised by the interface. `source` is likewise not updatable, so an origin
+  cannot be claimed. See
+  [ADR 0004](DECISIONS/0004-capture-is-preserved-by-privilege.md).
+- **`kind` is null until you say.** Defaulting to `note` would be ASI
+  classifying your input and then showing that guess back to you as if you had
+  made it.
+- **Processed can never mean nothing.** A CHECK ties `status`, `processed_at`
+  and `processed_into` together, and a route naming a project must reference
+  one.
+- **The project link is a composite foreign key** on `(user_id, project_id)`
+  referencing `projects (user_id, id)`. A plain `project_id` key is checked
+  outside RLS, so it would accept a link to another account's project and would
+  leak whether an identifier exists at all through the difference between
+  success and a constraint violation. Including `user_id` closes both. The
+  default MATCH SIMPLE semantics skip the check when `project_id` is null, which
+  is exactly right for an unlinked capture.
+- **No DELETE privilege.** An unwanted capture is archived, which keeps the
+  record of having thought it.
+
 ## Coming in later phases
 
-`inbox_items`, `projects`, `tasks`, `notes`, `people`, `memory_items`,
-`memory_revisions`, `agent_runs`, `recommendations`, `proposed_actions`,
-`decisions`, `actions`, `invitations`, `connections`, `shares`. See
-`docs/IMPLEMENTATION_PLAN.md` §7.
+`tasks`, `notes`, `people`, `memory_items`, `memory_revisions`, `agent_runs`,
+`recommendations`, `proposed_actions`, `decisions`, `actions`, `invitations`,
+`connections`, `shares`. See `docs/IMPLEMENTATION_PLAN.md` §7.
