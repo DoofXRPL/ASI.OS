@@ -17,10 +17,12 @@ import { ProcessForm, type ProjectOption } from "./process-form";
 export function UnprocessedList({
   items,
   projects,
+  projectsUnavailable = false,
   prefs,
 }: {
   items: InboxItemRow[];
   projects: ProjectOption[];
+  projectsUnavailable?: boolean;
   prefs: TimePreferences;
 }) {
   return (
@@ -40,6 +42,7 @@ export function UnprocessedList({
                 itemId={item.id}
                 content={item.content}
                 projects={projects}
+                projectsUnavailable={projectsUnavailable}
               />
             </div>
           </Disclosure>

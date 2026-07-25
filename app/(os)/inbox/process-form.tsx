@@ -35,10 +35,17 @@ export function ProcessForm({
   itemId,
   content,
   projects,
+  projectsUnavailable = false,
 }: {
   itemId: string;
   content: string;
   projects: ProjectOption[];
+  /**
+   * True when the project list could not be read, as opposed to being empty.
+   * The two must not be described the same way: "you have none" is a claim
+   * about your records, and it would be false.
+   */
+  projectsUnavailable?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ProcessFormState, FormData>(
     processInboxItemAction,
@@ -80,7 +87,9 @@ export function ProcessForm({
         ))}
         {hasProjects ? null : (
           <p className="text-xs text-ink-faint">
-            Attaching to a project is not offered because you have none yet.
+            {projectsUnavailable
+              ? "Your projects could not be read just now, so routing this to one is not offered. Capturing and archiving are unaffected."
+              : "Attaching to a project is not offered because you have none yet."}
           </p>
         )}
       </fieldset>

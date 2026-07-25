@@ -9,6 +9,7 @@ import { ACTIVITY_PAGE_SIZE, listActivity } from "@/lib/audit/log";
 import { getSettings } from "@/lib/db/settings";
 import { describeEventType, isKnownEventType } from "@/lib/schemas/activity";
 import { formatTimestamp } from "@/lib/format/datetime";
+import { asSentence } from "@/lib/format/text";
 
 export const metadata: Metadata = { title: "Activity" };
 
@@ -39,7 +40,7 @@ export default async function ActivityPage() {
             making a confident claim it cannot support. */}
         <Failed
           headline="Your history could not be read."
-          detail={`${result.error} Nothing has been lost: this trail is append-only and no read can alter it.`}
+          detail={`${asSentence(result.error)} Nothing has been lost: this trail is append-only and no read can alter it.`}
         />
       </>
     );

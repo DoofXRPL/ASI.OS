@@ -12,6 +12,7 @@ import { listProjects } from "@/lib/db/projects";
 import { getSettings } from "@/lib/db/settings";
 import { deriveTodayState } from "@/lib/derive/today";
 import { formatRelative } from "@/lib/format/datetime";
+import { asSentence } from "@/lib/format/text";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -52,7 +53,7 @@ export default async function TodayPage() {
         />
         <Failed
           headline="Today cannot be derived right now."
-          detail={`${error} Rather than show you a page that might be wrong about your own records, it shows you nothing. Reload to try again.`}
+          detail={`${asSentence(error)} Rather than show you a page that might be wrong about your own records, it shows you nothing. Reload to try again.`}
         />
       </>
     );

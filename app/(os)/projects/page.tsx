@@ -11,6 +11,7 @@ import { listProjects } from "@/lib/db/projects";
 import { getSettings } from "@/lib/db/settings";
 import { countProjects, hasNextAction, isOpen, sortProjectsForList } from "@/lib/derive/projects";
 import { formatRelative } from "@/lib/format/datetime";
+import { asSentence } from "@/lib/format/text";
 import { NewProjectForm } from "./new-project-form";
 
 export const metadata: Metadata = { title: "Projects" };
@@ -35,7 +36,7 @@ export default async function ProjectsPage() {
         />
         <Failed
           headline="Your projects could not be read."
-          detail={`${projects.error} Nothing has been changed. Reload to try again.`}
+          detail={`${asSentence(projects.error)} Nothing has been changed. Reload to try again.`}
         />
       </>
     );

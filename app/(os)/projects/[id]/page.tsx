@@ -14,6 +14,7 @@ import { getSettings } from "@/lib/db/settings";
 import { hasNextAction } from "@/lib/derive/projects";
 import { describeKind, describeProcessedInto } from "@/lib/schemas/inbox";
 import { formatRelative, formatTimestamp } from "@/lib/format/datetime";
+import { asSentence } from "@/lib/format/text";
 import { NextActionForm } from "./next-action-form";
 import { OutcomeForm } from "./outcome-form";
 import { StatusForm } from "./status-form";
@@ -48,7 +49,7 @@ export default async function ProjectPage({
         />
         <Failed
           headline="This project could not be read."
-          detail={`${project.error} Nothing has been changed. Reload to try again.`}
+          detail={`${asSentence(project.error)} Nothing has been changed. Reload to try again.`}
         />
       </>
     );

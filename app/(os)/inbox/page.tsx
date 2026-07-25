@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { asSentence } from "@/lib/format/text";
 import { PageHeader } from "@/components/os/page-header";
 import { Section } from "@/components/os/section";
 import { CalmState, Failed, NothingYet } from "@/components/os/states";
@@ -39,8 +40,12 @@ export default async function InboxPage() {
     timeFormat: settings.timeFormat,
   };
 
-  const failure = [unprocessed, processed, archived, projects].find((r) => !r.ok);
-  if (failure && !failure.ok) {
+  // Only the captures themselves can take this page down. Projects are needed
+  // to route a capture, not to make one, and capture is the thing that must
+  // always work: refusing to accept a thought because a secondary read failed
+  // would break the one promise the inbox makes.
+  const captureFailure = [unprocessed, processed, archived].find((r) => !r.ok);
+  if (captureFailure && !captureFailure.ok) {
     return (
       <>
         <PageHeader
@@ -50,13 +55,13 @@ export default async function InboxPage() {
         />
         <Failed
           headline="Your captures could not be read."
-          detail={`${failure.error} Nothing has been lost — this is a read failure, not a write one. Reload to try again.`}
+          detail={`${asSentence(captureFailure.error)} Nothing has been lost — this is a read failure, not a write one. Reload to try again.`}
         />
       </>
     );
   }
 
-  if (!unprocessed.ok || !processed.ok || !archived.ok || !projects.ok) return null;
+  if (!unprocessed.ok || !processed.ok || !archived.ok) return null;
 
   const waiting = unprocessed.data;
   const settled = [...processed.data.items, ...archived.data.items].sort((a, b) =>
@@ -67,11 +72,13 @@ export default async function InboxPage() {
 
   // Only open projects are offered as destinations. Routing a live thought into
   // something you finished or abandoned is almost never what was meant.
-  const projectOptions = projects.data
-    .filter(isOpen)
-    .map((project) => ({ id: project.id, name: project.name }));
+  const projectOptions = projects.ok
+    ? projects.data.filter(isOpen).map((project) => ({ id: project.id, name: project.name }))
+    : [];
 
-  const projectNames = new Map(projects.data.map((p) => [p.id, p.name]));
+  const projectNames = new Map(
+    projects.ok ? projects.data.map((p) => [p.id, p.name] as const) : [],
+  );
 
   return (
     <>
@@ -99,6 +106,7 @@ export default async function InboxPage() {
           <UnprocessedList
             items={waiting.items}
             projects={projectOptions}
+            projectsUnavailable={!projects.ok}
             prefs={prefs}
           />
         </Section>
