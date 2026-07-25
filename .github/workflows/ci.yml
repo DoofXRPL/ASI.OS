@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+
+    # A real PostgreSQL instance, because Row Level Security is the only
+    # isolation boundary in this product and mocks cannot prove it holds.
+    # A service container is used rather than the Supabase CLI so the required
+    # gate stays fast and needs no Docker-in-Docker.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: asi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/asi_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Fails the build if application code can reach a credential that bypasses
+      # Row Level Security.
+      - name: Guard privileged credentials
+        run: npm run guard:service-role
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      # Applies every migration to an empty database, then proves with two real
+      # accounts that neither can reach the other's records.
+      - name: Row Level Security tests
+        run: npm run test:rls
+
+      - name: Build
+        run: npm run build
