@@ -22,7 +22,13 @@ import {
  * everyone would pass the whole suite.
  */
 
-const USER_TABLES = ["profiles", "user_settings", "activity_events"] as const;
+const USER_TABLES = [
+  "profiles",
+  "user_settings",
+  "activity_events",
+  "projects",
+  "inbox_items",
+] as const;
 
 let admin: Client;
 let alice: TestUser;
@@ -87,14 +93,18 @@ describe("account provisioning", () => {
   });
 
   it("makes the first account the owner and no later account an owner", async () => {
+    // Asserted by creation order rather than by a specific address, because
+    // other suites in this run also create accounts. The rule under test is
+    // "the earliest account, whichever it is", and exactly one of them.
     const { rows } = await admin.query<{ email: string; is_owner: boolean }>(
       `select u.email, p.is_owner
        from public.profiles p
        join auth.users u on u.id = p.user_id
        order by p.created_at, u.email`,
     );
-    expect(rows[0]).toEqual({ email: "alice@asi.test", is_owner: true });
+    expect(rows[0]?.is_owner).toBe(true);
     expect(rows.filter((r) => r.is_owner)).toHaveLength(1);
+    expect(rows.length).toBeGreaterThan(1);
   });
 
   it("refuses a second owner at the database level", async () => {
@@ -114,6 +124,15 @@ describe("account provisioning", () => {
        values ($1, 'test.seed', 'doomed event')`,
       [doomed.id],
     );
+    const { rows: projectRows } = await admin.query<{ id: string }>(
+      "insert into public.projects (user_id, name) values ($1, 'Doomed') returning id",
+      [doomed.id],
+    );
+    await admin.query(
+      `insert into public.inbox_items (user_id, content, project_id)
+       values ($1, 'doomed capture', $2)`,
+      [doomed.id, projectRows[0]?.id],
+    );
 
     await admin.query("delete from auth.users where id = $1", [doomed.id]);
 
@@ -122,6 +141,8 @@ describe("account provisioning", () => {
          (select count(*) from public.profiles where user_id = $1)::int
        + (select count(*) from public.user_settings where user_id = $1)::int
        + (select count(*) from public.activity_events where user_id = $1)::int
+       + (select count(*) from public.projects where user_id = $1)::int
+       + (select count(*) from public.inbox_items where user_id = $1)::int
        as total`,
       [doomed.id],
     );
@@ -185,6 +206,31 @@ describe("schema-wide guarantees", () => {
         "user_id",
       ],
       user_settings: ["created_at", "id", "settings", "updated_at", "user_id"],
+      projects: [
+        "blocked_reason",
+        "created_at",
+        "id",
+        "last_touched_at",
+        "name",
+        "next_action",
+        "outcome",
+        "status",
+        "updated_at",
+        "user_id",
+      ],
+      inbox_items: [
+        "content",
+        "created_at",
+        "id",
+        "kind",
+        "processed_at",
+        "processed_into",
+        "project_id",
+        "source",
+        "status",
+        "updated_at",
+        "user_id",
+      ],
     };
 
     for (const table of USER_TABLES) {

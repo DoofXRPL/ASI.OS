@@ -4,10 +4,12 @@
  * Every entry here is a route that exists and does real work with real data.
  *
  * A surface enters this list in the phase that makes it functional, never
- * earlier. Inbox, Projects, Decisions, Memory and Connections are therefore
- * absent today: shipping them as empty shells badged "soon" would teach the
- * reader that navigation cannot be trusted, which is the most expensive lesson a
- * product about trust can teach. See docs/DECISIONS/0002-navigation-earns-its-place.md.
+ * earlier. Inbox and Projects appear now because they hold real records;
+ * Decisions, Memory and Connections are still absent, and their routes still
+ * return a genuine 404. Shipping them as empty shells badged "soon" would teach
+ * the reader that navigation cannot be trusted, which is the most expensive
+ * lesson a product about trust can teach.
+ * See docs/DECISIONS/0002-navigation-earns-its-place.md.
  *
  * `stage` names the part of the loop each surface serves —
  * Observe, Understand, Recommend, Approve, Act, Remember — because a surface that
@@ -39,6 +41,19 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Today",
     stage: "Observe",
     purpose: "What is true right now, drawn from your own records.",
+  },
+  {
+    href: "/inbox",
+    label: "Inbox",
+    stage: "Observe",
+    purpose: "Capture first, decide later. Nothing you write here is changed.",
+  },
+  {
+    href: "/projects",
+    label: "Projects",
+    stage: "Understand",
+    purpose:
+      "What you are trying to make true, and the one action that moves each forward.",
   },
   {
     href: "/activity",

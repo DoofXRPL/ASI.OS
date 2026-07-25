@@ -36,6 +36,15 @@ export default defineConfig({
           environment: "node",
           include: ["tests/rls/**/*.test.ts"],
           globalSetup: ["tests/rls/global-setup.ts"],
+          /**
+           * Every RLS file runs against the same database, which is the point:
+           * the policies under test are the real ones, applied once from
+           * migrations. A single fork runs those files one at a time, so
+           * concurrent transactions cannot make a genuine failure look like a
+           * flake — or, worse, hide one.
+           */
+          pool: "forks",
+          poolOptions: { forks: { singleFork: true } },
           testTimeout: 30_000,
           hookTimeout: 60_000,
         },

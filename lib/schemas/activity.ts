@@ -19,6 +19,14 @@ export const ACTIVITY_EVENT_TYPES = [
   "auth.signed_out",
   "profile.updated",
   "settings.updated",
+  "inbox.captured",
+  "inbox.processed",
+  "inbox.archived",
+  "project.created",
+  "project.next_action_set",
+  "project.next_action_cleared",
+  "project.status_changed",
+  "project.outcome_updated",
 ] as const;
 
 export type ActivityEventType = (typeof ACTIVITY_EVENT_TYPES)[number];
@@ -32,6 +40,14 @@ const EVENT_LABELS: Record<ActivityEventType, string> = {
   "auth.signed_out": "Signed out",
   "profile.updated": "Identity updated",
   "settings.updated": "Settings updated",
+  "inbox.captured": "Captured",
+  "inbox.processed": "Capture processed",
+  "inbox.archived": "Capture archived",
+  "project.created": "Project started",
+  "project.next_action_set": "Next action set",
+  "project.next_action_cleared": "Next action cleared",
+  "project.status_changed": "Project status changed",
+  "project.outcome_updated": "Project outcome updated",
 };
 
 export function describeEventType(eventType: string): string {

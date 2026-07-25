@@ -50,6 +50,39 @@ export type ActivityEventRow = {
 };
 
 /**
+ * Constrained columns are typed as `string` rather than as unions, matching
+ * what `supabase gen types` emits and what PostgREST actually returns. The
+ * closed sets live in `lib/schemas/`, where a value the interface does not
+ * recognise can be handled rather than crashing a page that is otherwise fine.
+ */
+export type ProjectRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  outcome: string | null;
+  status: string;
+  next_action: string | null;
+  blocked_reason: string | null;
+  last_touched_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type InboxItemRow = {
+  id: string;
+  user_id: string;
+  content: string;
+  kind: string | null;
+  status: string;
+  project_id: string | null;
+  processed_into: string | null;
+  processed_at: string | null;
+  source: string;
+  created_at: string;
+  updated_at: string;
+};
+
+/**
  * Declared as a type alias rather than an interface on purpose: PostgREST's
  * schema constraint relies on implicit index signatures, which TypeScript infers
  * for type aliases but not for interfaces. As an interface, every query type
@@ -90,6 +123,42 @@ export type Database = {
          * this table is a compile error rather than a runtime rejection.
          */
         Update: Record<string, never>;
+        Relationships: [];
+      };
+      projects: {
+        Row: ProjectRow;
+        Insert: Pick<ProjectRow, "user_id" | "name"> &
+          Partial<
+            Pick<ProjectRow, "outcome" | "status" | "next_action" | "blocked_reason">
+          >;
+        Update: Partial<
+          Pick<
+            ProjectRow,
+            | "name"
+            | "outcome"
+            | "status"
+            | "next_action"
+            | "blocked_reason"
+            | "last_touched_at"
+          >
+        >;
+        Relationships: [];
+      };
+      inbox_items: {
+        Row: InboxItemRow;
+        Insert: Pick<InboxItemRow, "user_id" | "content"> &
+          Partial<Pick<InboxItemRow, "kind" | "project_id">>;
+        /**
+         * `content` and `source` are absent deliberately, mirroring the grants:
+         * captured text cannot be rewritten and its origin cannot be claimed.
+         * Attempting either is a compile error rather than a runtime rejection.
+         */
+        Update: Partial<
+          Pick<
+            InboxItemRow,
+            "kind" | "status" | "project_id" | "processed_into" | "processed_at"
+          >
+        >;
         Relationships: [];
       };
     };

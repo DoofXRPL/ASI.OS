@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/os/page-header";
-import { NothingYet } from "@/components/os/states";
+import { Failed, NothingYet } from "@/components/os/states";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { findNavItem } from "@/components/os/nav";
@@ -16,7 +16,7 @@ const NAV = findNavItem("/activity");
 
 export default async function ActivityPage() {
   const session = await requireAuthedSession();
-  const [settings, activity] = await Promise.all([
+  const [settings, result] = await Promise.all([
     getSettings(session.user.id),
     listActivity(session.user.id, { limit: ACTIVITY_PAGE_SIZE }),
   ]);
@@ -25,6 +25,27 @@ export default async function ActivityPage() {
     timezone: session.profile.timezone,
     timeFormat: settings.timeFormat,
   };
+
+  if (!result.ok) {
+    return (
+      <>
+        <PageHeader
+          title="Activity"
+          stage={NAV?.stage ?? "Remember"}
+          purpose={NAV?.purpose ?? ""}
+        />
+        {/* An unreadable history and an empty one are different facts, and
+            showing the second when the first is true would be the interface
+            making a confident claim it cannot support. */}
+        <Failed
+          headline="Your history could not be read."
+          detail={`${result.error} Nothing has been lost: this trail is append-only and no read can alter it.`}
+        />
+      </>
+    );
+  }
+
+  const activity = result.data;
 
   return (
     <>
