@@ -37,9 +37,16 @@ A page load of `/today`:
 3. The page reads records through `lib/db/*` and `lib/audit/*`, which use the
    server client authenticated **as the caller**. PostgreSQL evaluates RLS against
    the real user.
-4. `lib/derive/today.ts` turns rows into sentences. It is pure, so what the page
-   says can be tested exhaustively without a database.
+4. `lib/derive/today.ts` and `lib/derive/attention.ts` turn rows into sentences.
+   They are pure, so what the page says can be tested exhaustively without a
+   database — and every attention item carries evidence naming the row it came
+   from, which is the same obligation the reasoning layer will inherit.
 5. The page renders one of the honest states from `components/os/states.tsx`.
+
+A read that fails returns `{ ok: false, error }` rather than an empty result.
+"You have nothing" and "this could not be read" are different sentences, and
+only one of them is true at a time; showing the first when the second is true
+would be a confident claim about someone's records that happens to be false.
 
 A write, such as saving identity:
 
@@ -75,8 +82,13 @@ visitor. A stale page in a product about commitments is a wrong page.
 
 ## Database
 
-Three tables, all with `user_id uuid not null` and RLS enabled. See
+Five tables, all with `user_id uuid not null` and RLS enabled. See
 `docs/DATA-MODEL.md`.
+
+Two guarantees are enforced by privilege rather than by application code,
+because a rule that depends on nobody writing the wrong function is a property
+of the team and not of the system: the audit trail cannot be rewritten, and
+neither can captured text. Both are proven in `tests/rls/`.
 
 Migrations are versioned and applied in order from `supabase/migrations/`. The RLS
 suite applies them to an empty database on every run, so a migration that only

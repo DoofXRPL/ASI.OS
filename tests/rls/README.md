@@ -55,10 +55,22 @@ entire suite.
   `NOT NULL user_id`; the column shape matches what the application types expect;
   `anon` has no privilege on any table; every function pins `search_path`; the
   provisioning function is unreachable from API roles.
-- **Per-table isolation** — for `profiles`, `user_settings` and `activity_events`:
-  a user reads and writes their own rows, cannot see another's rows even when the
-  row id is known, affects zero rows when updating another's, and is refused when
-  inserting a row owned by someone else.
+- **Per-table isolation** — for all five tables: a user reads and writes their own
+  rows, cannot see another's rows even when the row id is known, affects zero rows
+  when updating another's, and is refused when inserting a row owned by someone
+  else.
+- **Captured text is immutable** — `inbox_items.content` has no UPDATE privilege
+  and the statement is rejected, paired with a positive control showing that the
+  classification and status around it still change.
+- **Cross-account linking is impossible** — a capture cannot reference another
+  account's project, and the composite foreign key fails identically for a project
+  that does not exist, so it cannot be used to discover that one does.
+- **A blocked project says why** — blocking without a reason is rejected, and so is
+  keeping a reason on a project that is no longer blocked.
+- **Processed can never mean nothing** — status, `processed_at` and
+  `processed_into` must agree, and a route naming a project must reference one.
+- **Nothing is deletable** — neither `projects` nor `inbox_items` grants DELETE,
+  and neither defines a DELETE policy.
 - **Privilege escalation** — a user cannot grant themselves `is_owner`, because
   the column is not granted at all.
 - **Audit immutability** — `activity_events` has no UPDATE or DELETE policy and no

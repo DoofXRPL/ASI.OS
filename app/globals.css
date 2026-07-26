@@ -38,6 +38,18 @@
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
     monospace;
 
+  /*
+   * The only step larger than body text, and it is reserved for a sentence
+   * about your situation. ASI OS states things; it does not display metrics, so
+   * there is deliberately no size here for a large number.
+   */
+  --text-statement: 1.375rem;
+  --text-statement--line-height: 1.35;
+  --text-statement--letter-spacing: -0.011em;
+
+  /* Roughly 68 characters — the width prose stays readable at. */
+  --container-measure: 34rem;
+
   --radius-card: 0.625rem;
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -81,4 +93,27 @@ body {
 ::selection {
   background-color: var(--color-accent-dim);
   color: var(--color-ink);
+}
+
+/*
+ * Progressive disclosure is native. `<details>` gives correct keyboard and
+ * screen-reader behaviour for free; only the default triangle is replaced, by
+ * a marker the component draws itself.
+ */
+summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+/*
+ * A capture field grows with what is being written rather than scrolling inside
+ * a fixed box. Where `field-sizing` is unsupported the textarea keeps its rows
+ * attribute, so the field is smaller but never broken.
+ */
+.field-grows {
+  field-sizing: content;
 }

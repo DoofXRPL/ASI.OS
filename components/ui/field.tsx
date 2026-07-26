@@ -5,7 +5,8 @@ import type {
 } from "react";
 import { cn } from "./cn";
 
-const CONTROL = cn(
+/** Shared by every text control so they cannot drift apart. */
+export const CONTROL = cn(
   "w-full rounded-md border border-line-strong bg-void px-3 text-sm text-ink",
   "placeholder:text-ink-faint transition-colors duration-150",
   "hover:border-ink-faint focus:border-accent focus:outline-none",

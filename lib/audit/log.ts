@@ -1,6 +1,7 @@
 import type { ActivityEventRow, Json } from "@/lib/supabase/database.types";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { activityWriteSchema, type ActivityWrite } from "@/lib/schemas/activity";
+import type { ReadResult } from "@/lib/db/result";
 
 /**
  * The audit trail.
@@ -63,15 +64,19 @@ export const ACTIVITY_PAGE_SIZE = 50;
  * Reads the caller's own history, newest first. Row Level Security guarantees
  * that only their events can be returned; the `user_id` filter below is defence
  * in depth, not the mechanism.
+ *
+ * A failure is reported rather than flattened into an empty page. "Nothing has
+ * happened yet" and "your history could not be read" are different sentences,
+ * and only one of them is true at a time.
  */
 export async function listActivity(
   userId: string,
   options: { limit?: number; eventType?: string } = {},
-): Promise<ActivityPage> {
+): Promise<ReadResult<ActivityPage>> {
   const limit = Math.min(Math.max(options.limit ?? ACTIVITY_PAGE_SIZE, 1), 200);
 
   const supabase = await createSupabaseServerClient();
-  if (!supabase) return { events: [], hasMore: false };
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
 
   let query = supabase
     .from("activity_events")
@@ -85,10 +90,14 @@ export async function listActivity(
   }
 
   const { data, error } = await query;
-  if (error || !data) return { events: [], hasMore: false };
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: "Your history could not be read." };
 
   return {
-    events: data.slice(0, limit),
-    hasMore: data.length > limit,
+    ok: true,
+    data: {
+      events: data.slice(0, limit),
+      hasMore: data.length > limit,
+    },
   };
 }

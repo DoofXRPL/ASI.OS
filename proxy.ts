@@ -17,7 +17,13 @@ import {
  * Each page independently resolves identity through `requireAuthedSession()`, and
  * PostgreSQL independently enforces ownership through Row Level Security.
  */
-const PRIVATE_PREFIXES = ["/today", "/activity", "/settings"] as const;
+const PRIVATE_PREFIXES = [
+  "/today",
+  "/inbox",
+  "/projects",
+  "/activity",
+  "/settings",
+] as const;
 
 function isPrivate(pathname: string): boolean {
   return PRIVATE_PREFIXES.some(
@@ -45,5 +51,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/today/:path*", "/activity/:path*", "/settings/:path*", "/login"],
+  matcher: [
+    "/today/:path*",
+    "/inbox/:path*",
+    "/projects/:path*",
+    "/activity/:path*",
+    "/settings/:path*",
+    "/login",
+  ],
 };

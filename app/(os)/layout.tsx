@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { AccountPanel } from "@/components/os/account-panel";
 import { SideNav } from "@/components/os/side-nav";
+import { SkipLink } from "@/components/os/skip-link";
 import { isOwner, requireAuthedSession } from "@/lib/auth/session";
 
 /**
@@ -24,7 +25,9 @@ export default async function OsLayout({ children }: { children: ReactNode }) {
   const session = await requireAuthedSession();
 
   return (
-    <div className="flex min-h-dvh flex-col md:flex-row">
+    <div className="relative flex min-h-dvh flex-col md:flex-row">
+      <SkipLink />
+
       <aside className="flex shrink-0 flex-col border-b border-line bg-surface md:w-56 md:border-r md:border-b-0">
         <div className="px-4 py-4">
           <p className="text-sm font-medium text-ink">ASI OS</p>
@@ -40,8 +43,8 @@ export default async function OsLayout({ children }: { children: ReactNode }) {
         <AccountPanel session={session} isOwner={isOwner(session)} />
       </aside>
 
-      <main className="min-w-0 flex-1">
-        <div className="mx-auto w-full max-w-4xl space-y-6 px-5 py-8 md:px-8">
+      <main id="content" aria-label="Main content" className="min-w-0 flex-1">
+        <div className="mx-auto w-full max-w-5xl space-y-8 px-5 py-8 md:px-8">
           {children}
         </div>
       </main>
