@@ -180,6 +180,17 @@ summary::-webkit-details-marker {
 }
 
 /*
+ * A field that grows with the thought is right on a page and wrong in a sheet.
+ * `field-sizing: content` has no ceiling, so a long draft grows past the sheet
+ * and takes the Capture button with it: submitting then means scrolling through
+ * your own text to find the button. Here the field stops growing and scrolls
+ * itself, which keeps the button where it was put.
+ */
+.capture-sheet textarea {
+  max-height: 40dvh;
+}
+
+/*
  * Custom properties are not inherited into `::backdrop` in every engine that
  * supports the element, so the value is literal here. It is `--color-void` at
  * 78%.
