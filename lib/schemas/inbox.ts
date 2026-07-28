@@ -60,15 +60,41 @@ export function describeProcessedInto(value: string | null): string | null {
   return (PROCESSED_INTO_LABELS as Record<string, string>)[value] ?? value;
 }
 
+/**
+ * The longest a single capture may be.
+ *
+ * Exported so the field, the counter and the server all read one number. Three
+ * copies of 4000 is three chances for the interface to promise a limit the
+ * server does not keep.
+ */
+export const CAPTURE_MAX_CHARACTERS = 4000;
+
 export const captureSchema = z.object({
   content: z
     .string()
     .trim()
     .min(1, "Write something to capture.")
-    .max(4000, "Keep a capture to 4000 characters or fewer."),
+    .max(
+      CAPTURE_MAX_CHARACTERS,
+      `Keep a capture to ${CAPTURE_MAX_CHARACTERS} characters or fewer.`,
+    ),
 });
 
 export type Capture = z.infer<typeof captureSchema>;
+
+/**
+ * How close a capture is to the limit, once that is worth saying.
+ *
+ * A counter that appears at the first keystroke turns a field with no decisions
+ * in it into a field with a budget. It stays absent until the limit is close
+ * enough to matter, and `null` means there is nothing to report.
+ */
+export const CAPTURE_COUNTER_APPEARS_WITHIN = 200;
+
+export function captureCharactersLeft(length: number): number | null {
+  const remaining = CAPTURE_MAX_CHARACTERS - length;
+  return remaining <= CAPTURE_COUNTER_APPEARS_WITHIN ? remaining : null;
+}
 
 /**
  * The four routes out of the inbox.

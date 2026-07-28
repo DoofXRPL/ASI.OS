@@ -3,6 +3,7 @@ import { asSentence } from "@/lib/format/text";
 import { PageHeader } from "@/components/os/page-header";
 import { Section } from "@/components/os/section";
 import { CalmState, Failed, NothingYet } from "@/components/os/states";
+import { INLINE_CAPTURE_FIELD_ID } from "@/components/os/capture-shortcut";
 import { findNavItem } from "@/components/os/nav";
 import { requireAuthedSession } from "@/lib/auth/session";
 import { listInboxItems } from "@/lib/db/inbox";
@@ -93,7 +94,10 @@ export default async function InboxPage() {
         description="One field, no decisions. What you write is stored exactly as written and is never edited afterwards, including by you."
       >
         <div className="max-w-measure">
-          <CaptureForm autoFocus={waiting.total === 0} />
+          <CaptureForm
+            id={INLINE_CAPTURE_FIELD_ID}
+            autoFocus={waiting.total === 0}
+          />
         </div>
       </Section>
 

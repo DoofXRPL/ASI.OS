@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AccountPanel } from "@/components/os/account-panel";
+import { QuickCapture } from "@/components/os/quick-capture";
 import { SideNav } from "@/components/os/side-nav";
 import { SkipLink } from "@/components/os/skip-link";
 import { isOwner, requireAuthedSession } from "@/lib/auth/session";
@@ -34,6 +35,15 @@ export default async function OsLayout({ children }: { children: ReactNode }) {
           <p className="mt-0.5 text-[11px] text-ink-faint">
             Adaptive Systems Interface
           </p>
+        </div>
+
+        {/*
+          Mounted in the shell rather than on a page, because a thought does not
+          wait for you to be on the inbox. It stays mounted across navigation,
+          which is also what lets a half-written draft survive one.
+        */}
+        <div className="px-3 pb-3">
+          <QuickCapture />
         </div>
 
         <div className="px-2 pb-3 md:flex-1 md:px-0">

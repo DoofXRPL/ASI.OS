@@ -117,3 +117,94 @@ summary::-webkit-details-marker {
 .field-grows {
   field-sizing: content;
 }
+
+/*
+ * The quick capture sheet.
+ *
+ * Written for the small screen first, because that is where the constraint is:
+ * a thought arrives, the thumb is at the bottom of the phone, and the on-screen
+ * keyboard is about to take half the viewport. So the sheet is anchored to the
+ * bottom edge and full width, and it becomes a centred panel only once there is
+ * room for one.
+ *
+ * The element's own padding is zero and all of it lives on the body below.
+ * `Dialog` reads a click whose target is the dialog itself as a click on the
+ * backdrop, which is only true while no part of the dialog's own box is
+ * reachable by a pointer.
+ */
+.capture-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: none;
+  /*
+   * Leaves the surface underneath visible, so it is clear the page was not
+   * replaced. `dvh` rather than `vh` so the sheet answers to the browser's own
+   * retracting toolbars — and, together with
+   * `interactiveWidget: "resizes-content"` in the root viewport, to the
+   * on-screen keyboard as well. Without that pairing a bottom-anchored fixed
+   * element sits behind the keyboard instead of above it.
+   */
+  max-height: 85dvh;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--color-line);
+  border-bottom: 0;
+  border-radius: 0.875rem 0.875rem 0 0;
+  background-color: var(--color-surface);
+  /* The sheet is short but the field grows; the Capture button must stay
+     reachable rather than being pushed out of view. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 0 -1.5rem 3rem rgb(0 0 0 / 0.55);
+  transition:
+    translate 180ms var(--ease-out),
+    opacity 180ms var(--ease-out);
+}
+
+/* Rises from the edge it is attached to, so the motion says where it came
+   from. The reduced-motion rule above collapses it to nothing. */
+@starting-style {
+  .capture-sheet {
+    opacity: 0;
+    translate: 0 1.5rem;
+  }
+}
+
+.capture-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  /* Clears the home indicator on a phone, and resolves to zero elsewhere. */
+  padding: 1.125rem 1.25rem calc(1.125rem + env(safe-area-inset-bottom, 0px));
+}
+
+/*
+ * Custom properties are not inherited into `::backdrop` in every engine that
+ * supports the element, so the value is literal here. It is `--color-void` at
+ * 78%.
+ */
+.capture-sheet::backdrop {
+  background-color: rgb(8 9 11 / 0.78);
+}
+
+@media (width >= 48rem) {
+  .capture-sheet {
+    inset: 0;
+    /* Held above centre: a dialog that starts under the eye rather than at it
+       leaves the surface it covers readable. */
+    margin: 12dvh auto auto;
+    width: min(36rem, calc(100vw - 3rem));
+    max-height: min(80dvh, 32rem);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 0.6);
+  }
+
+  @starting-style {
+    .capture-sheet {
+      opacity: 0;
+      translate: 0 -0.5rem;
+    }
+  }
+}
