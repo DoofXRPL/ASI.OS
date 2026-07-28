@@ -16,6 +16,14 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: "#08090b",
   colorScheme: "dark",
+  /*
+   * The on-screen keyboard shrinks the page rather than sliding over it. The
+   * default resizes only the visual viewport, which leaves a bottom-anchored
+   * fixed element — the capture sheet — sitting behind the keyboard with its
+   * Capture button out of reach. This is also what makes `dvh` answer to the
+   * keyboard, so `max-height: 85dvh` on the sheet means what it says.
+   */
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

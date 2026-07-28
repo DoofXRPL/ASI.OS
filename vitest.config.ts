@@ -23,8 +23,14 @@ export default defineConfig({
         },
         test: {
           name: "unit",
+          /*
+           * Node by default: almost everything here is a pure function, and a
+           * DOM those tests do not use is a DOM that can hide a dependency on
+           * one. The few files that render a component ask for a document with
+           * an `@vitest-environment` docblock instead.
+           */
           environment: "node",
-          include: ["tests/unit/**/*.test.ts"],
+          include: ["tests/unit/**/*.test.{ts,tsx}"],
         },
       },
       {
