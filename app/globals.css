@@ -3,15 +3,23 @@
 /*
  * ASI OS design tokens.
  *
- * Calm by default, intense only when necessary. Colour is rationed and carries
- * meaning: blue is the system thinking, amber means something needs you, sage
- * means confirmed or healthy, red means something failed. Nothing is coloured
- * for decoration, so when colour appears it can be trusted to mean something.
+ * Two palettes with one meaning system:
  *
- * Machine facts — timestamps, identifiers, counts — are set in mono so they read
- * as data rather than prose.
+ * The application palette is dark and calm — every private surface renders one
+ * person's records against near-black, and colour is rationed: blue is the
+ * system thinking, amber means something needs you, sage means confirmed, red
+ * means failed. Nothing is coloured for decoration.
+ *
+ * The site palette is light and neutral — the public front page is a technical
+ * product document, not a cinematic reveal, so it reads as ink on paper with
+ * thin borders and one restrained accent. Dark surfaces appear there only to
+ * show the product, which is itself dark.
+ *
+ * Machine facts — timestamps, identifiers, counts, statuses — are set in mono
+ * so they read as data rather than prose.
  */
 @theme {
+  /* Application (dark) palette. */
   --color-void: #08090b;
   --color-surface: #0e1014;
   --color-raised: #14171d;
@@ -31,6 +39,19 @@
   --color-danger: #e2686b;
   --color-danger-dim: #3a1f21;
 
+  /* Site (light) palette. Text colours hold WCAG AA on canvas and panel. */
+  --color-canvas: #fafafa;
+  --color-panel: #ffffff;
+  --color-wash: #f2f4f6;
+  --color-carbon: #101418;
+  --color-graphite: #4a545f;
+  --color-mist: #6e7883;
+  --color-edge: #e5e8ec;
+  --color-edge-strong: #c9cfd6;
+  --color-accent-ink: #1e5fd6;
+  --color-confirmed-ink: #0e7a4b;
+  --color-attention-ink: #8a5f10;
+
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
@@ -39,9 +60,9 @@
     monospace;
 
   /*
-   * The only step larger than body text, and it is reserved for a sentence
-   * about your situation. ASI OS states things; it does not display metrics, so
-   * there is deliberately no size here for a large number.
+   * The only step larger than body text inside the application, reserved for a
+   * sentence about your situation. ASI OS states things; it does not display
+   * metrics, so there is deliberately no size here for a large number.
    */
   --text-statement: 1.375rem;
   --text-statement--line-height: 1.35;
@@ -55,92 +76,22 @@
   /*
    * The motion language, as tokens.
    *
-   * Every entrance on the front page rises the same distance, sheds the same
-   * blur, takes the same time on the same curve, and staggers by the same step.
-   * These eight values ARE the motion design; components may combine them but
-   * never invent their own. `lib/site/motion.ts` mirrors the ones script code
-   * needs, and `tests/unit/motion-tokens.test.ts` fails if the two drift apart.
+   * Motion on the front page communicates system behaviour and nothing else: a
+   * short rise-and-fade when content enters, staggered in one fixed step, and
+   * quick hover feedback. These five values ARE the motion design; components
+   * combine them but never invent their own. `lib/site/motion.ts` mirrors the
+   * ones script code needs, and `tests/unit/motion-tokens.test.ts` fails if
+   * the two drift apart.
    *
    * The private surfaces animate nothing but state changes: a page that moves
    * while you read your own commitments is a page arguing with you.
    */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-exit: cubic-bezier(0.55, 0, 0.7, 0.3);
-  --duration-hover: 180ms;
-  --duration-reveal: 700ms;
-  --duration-page: 240ms;
-  --motion-stagger-step: 70ms;
-  --motion-distance: 18px;
-  --motion-blur: 10px;
-  --shadow-raise: 0 18px 44px -20px rgb(0 0 0 / 0.85);
-
-  /* Ambient loops. Slow, structural, and owned by the ambient layer. */
-  --animate-halo: halo 8s ease-in-out infinite;
-  --animate-breathe: breathe 7s ease-in-out infinite;
-  --animate-spin-slow: spin 26s linear infinite;
-  --animate-drift: drift 24s ease-in-out infinite alternate;
-  --animate-twinkle: twinkle 6s ease-in-out infinite;
-  --animate-trace: trace 6s linear infinite;
-
-  @keyframes halo {
-    0%,
-    100% {
-      opacity: 0.1;
-      transform: scale(0.92);
-    }
-    50% {
-      opacity: 0.2;
-      transform: scale(1.06);
-    }
-  }
-
-  @keyframes breathe {
-    0%,
-    100% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.035);
-    }
-  }
-
-  @keyframes drift {
-    from {
-      transform: translate3d(-3%, -2%, 0) scale(1);
-    }
-    to {
-      transform: translate3d(3%, 2%, 0) scale(1.08);
-    }
-  }
-
-  @keyframes twinkle {
-    0%,
-    100% {
-      opacity: 0.35;
-    }
-    50% {
-      opacity: 0.75;
-    }
-  }
-
-  /*
-   * A single point of light travelling the loop. The element is a quarter of the
-   * rail wide, so -100% to 400% of its own width carries it across exactly once.
-   */
-  @keyframes trace {
-    from {
-      transform: translateX(-100%);
-      opacity: 0;
-    }
-    10%,
-    90% {
-      opacity: 1;
-    }
-    to {
-      transform: translateX(400%);
-      opacity: 0;
-    }
-  }
+  --duration-hover: 150ms;
+  --duration-reveal: 550ms;
+  --motion-stagger-step: 60ms;
+  --motion-distance: 12px;
+  --shadow-lift: 0 1px 2px rgb(16 20 24 / 0.05), 0 10px 28px -18px rgb(16 20 24 / 0.18);
 }
 
 :root {
@@ -173,6 +124,11 @@ body {
   border-radius: 3px;
 }
 
+/* The light page needs the darker accent for the same visible focus. */
+.site-light :focus-visible {
+  outline-color: var(--color-accent-ink);
+}
+
 /* Motion conveys state; it is never entertainment, and it is always optional. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -188,6 +144,11 @@ body {
 ::selection {
   background-color: var(--color-accent-dim);
   color: var(--color-ink);
+}
+
+.site-light ::selection {
+  background-color: #d7e3fb;
+  color: var(--color-carbon);
 }
 
 /*
@@ -216,41 +177,38 @@ summary::-webkit-details-marker {
 /* ------------------------------------------------------------------------- *
  * Front page, motion layer.
  *
- * One entrance, used everywhere: rise by --motion-distance, shed --motion-blur,
- * fade in over --duration-reveal on --ease-out, staggered in multiples of
- * --motion-stagger-step. Components set only the two direction variables and a
- * delay; nothing else about an entrance is decided at the call site.
+ * One entrance, used everywhere: rise by --motion-distance and fade in over
+ * --duration-reveal on --ease-out, staggered in multiples of
+ * --motion-stagger-step. Components set only a direction and a delay; nothing
+ * else about an entrance is decided at the call site. No blur, no scaling, no
+ * exit animation — content leaves the way documents do, by being scrolled.
  * ------------------------------------------------------------------------- */
 .reveal {
   opacity: 0;
   transform: translate3d(var(--reveal-x, 0px), var(--reveal-y, var(--motion-distance)), 0);
-  filter: blur(var(--motion-blur));
   transition:
     opacity var(--duration-reveal) var(--ease-out),
-    transform var(--duration-reveal) var(--ease-out),
-    filter var(--duration-reveal) var(--ease-out);
+    transform var(--duration-reveal) var(--ease-out);
 }
 
 /* A hint only while hidden; settled content should not hold GPU memory. */
 .reveal[data-visible="false"] {
-  will-change: opacity, transform, filter;
+  will-change: opacity, transform;
 }
 
 .reveal[data-visible="true"] {
   opacity: 1;
   transform: none;
-  filter: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .reveal {
     opacity: 1;
     transform: none;
-    filter: none;
   }
 }
 
-/* Hover is part of the same language: the hover duration and the exit ease. */
+/* Hover is part of the same language: the hover duration on the same curve. */
 .hover-raise {
   transition:
     transform var(--duration-hover) var(--ease-out),
@@ -261,192 +219,21 @@ summary::-webkit-details-marker {
 
 @media (hover: hover) {
   .hover-raise:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-raise);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lift);
   }
 }
 
-/*
- * Leaving the page continues the entrance in reverse: up, out, and blurred,
- * on the exit curve. `TransitionLink` sets the attribute and waits
- * --duration-page before navigating.
- */
-[data-site] {
-  transition:
-    opacity var(--duration-page) var(--ease-exit),
-    transform var(--duration-page) var(--ease-exit),
-    filter var(--duration-page) var(--ease-exit);
-}
-
-html[data-page-leaving] [data-site] {
-  opacity: 0;
-  transform: translate3d(0, calc(var(--motion-distance) * -0.67), 0);
-  filter: blur(6px);
-}
-
 /* ------------------------------------------------------------------------- *
- * Front page, ambient layer.
+ * Front page, surfaces.
  *
- * Fixed, behind everything, pointer-events off. Textures are structural rather
- * than illustrative — a survey grid, a sparse star field for a mark that is a
- * star to navigate by, and broadcast noise so the black is never dead flat. All
- * drawn in gradients and one inline SVG so the page ships no images.
+ * One texture, and a quiet one: a survey grid in hairlines, fading out before
+ * it can read as a table. Structure, not atmosphere.
  * ------------------------------------------------------------------------- */
-.ambient-grid {
+.site-grid-faint {
   background-image:
-    linear-gradient(to right, var(--color-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--color-line) 1px, transparent 1px);
-  background-size: 72px 72px;
-  /* Fades to nothing before the edges, so the grid never looks like a table. */
-  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 10%, transparent 75%);
-}
-
-.ambient-stars {
-  background-image:
-    radial-gradient(1px 1px at 12% 22%, var(--color-ink-muted) 50%, transparent 51%),
-    radial-gradient(1px 1px at 78% 14%, var(--color-ink-muted) 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 32% 62%, var(--color-accent) 50%, transparent 51%),
-    radial-gradient(1px 1px at 62% 78%, var(--color-ink-faint) 50%, transparent 51%),
-    radial-gradient(1px 1px at 90% 54%, var(--color-ink-faint) 50%, transparent 51%),
-    radial-gradient(1px 1px at 46% 8%, var(--color-ink-faint) 50%, transparent 51%),
-    radial-gradient(1.5px 1.5px at 6% 74%, var(--color-ink-muted) 50%, transparent 51%);
-}
-
-.ambient-noise {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-  background-size: 160px 160px;
-}
-
-/* ------------------------------------------------------------------------- *
- * Front page, interaction layer.
- *
- * `PointerRoot` writes six unitless variables on <html> — --pointer-x/y (raw),
- * --pointer-ex/ey (eased through one shared lerp), --pointer-nx/ny (eased,
- * normalised to ±0.5) — and sets data-pointer="mouse" on the first real mouse
- * movement. Everything below only consumes them, which is what keeps the
- * spotlight, the cursor and the ambient depth moving as one.
- *
- * All of it is transform-only: nothing here repaints, so nothing here can
- * spend the frame budget.
- * ------------------------------------------------------------------------- */
-
-/* The custom cursor replaces the native one only where it actually exists. */
-html[data-pointer="mouse"] [data-site],
-html[data-pointer="mouse"] [data-site] a,
-html[data-pointer="mouse"] [data-site] button,
-html[data-pointer="mouse"] [data-site] summary {
-  cursor: none;
-}
-
-.cursor-dot,
-.cursor-ring {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 100;
-  pointer-events: none;
-  opacity: 0;
-  will-change: transform;
-}
-
-html[data-pointer="mouse"] .cursor-dot,
-html[data-pointer="mouse"] .cursor-ring {
-  opacity: 1;
-}
-
-html[data-pointer-idle] .cursor-dot,
-html[data-pointer-idle] .cursor-ring {
-  opacity: 0;
-}
-
-/* The dot sits exactly on the pointer; the ring trails it on the shared lerp. */
-.cursor-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 9999px;
-  background: var(--color-accent);
-  transform: translate3d(
-    calc(var(--pointer-x, -100) * 1px - 2.5px),
-    calc(var(--pointer-y, -100) * 1px - 2.5px),
-    0
-  );
-}
-
-.cursor-ring {
-  width: 34px;
-  height: 34px;
-  transform: translate3d(
-    calc(var(--pointer-ex, -100) * 1px - 17px),
-    calc(var(--pointer-ey, -100) * 1px - 17px),
-    0
-  );
-}
-
-/* Scale lives on an inner span so its transition never fights the tracking. */
-.cursor-ring > span {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 9999px;
-  border: 1px solid color-mix(in oklab, var(--color-ink-muted) 60%, transparent);
-  transition:
-    transform var(--duration-hover) var(--ease-out),
-    border-color var(--duration-hover) var(--ease-out),
-    background-color var(--duration-hover) var(--ease-out);
-}
-
-html[data-cursor-hover] .cursor-ring > span {
-  transform: scale(1.5);
-  border-color: color-mix(in oklab, var(--color-accent) 70%, transparent);
-  background: color-mix(in oklab, var(--color-accent) 8%, transparent);
-}
-
-html[data-cursor-down] .cursor-ring > span {
-  transform: scale(0.85);
-}
-
-/*
- * The spotlight is an oversized static gradient that is only ever translated,
- * never repainted. It follows the eased variables, so it trails the pointer at
- * exactly the cursor ring's pace.
- */
-.pointer-spotlight {
-  position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 0;
-  width: 1200px;
-  height: 1200px;
-  pointer-events: none;
-  opacity: 0;
-  will-change: transform;
-  background: radial-gradient(
-    closest-side,
-    color-mix(in oklab, var(--color-accent) 16%, transparent),
-    transparent 74%
-  );
-  transform: translate3d(
-    calc(var(--pointer-ex, -1200) * 1px - 600px),
-    calc(var(--pointer-ey, -1200) * 1px - 600px),
-    0
-  );
-  transition: opacity var(--duration-reveal) var(--ease-out);
-}
-
-html[data-pointer="mouse"] .pointer-spotlight {
-  opacity: 1;
-}
-
-/* Reading progress. State, not decoration, so it survives reduced motion. */
-.scroll-progress {
-  position: fixed;
-  inset-inline: 0;
-  top: 0;
-  z-index: 40;
-  height: 2px;
-  pointer-events: none;
-  background: var(--color-accent);
-  transform-origin: 0 50%;
-  transform: scaleX(var(--scroll-progress, 0));
-  will-change: transform;
+    linear-gradient(to right, var(--color-edge) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-edge) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, black 20%, transparent 90%);
 }

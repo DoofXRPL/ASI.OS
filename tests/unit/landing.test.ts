@@ -1,23 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { NAV_ITEMS } from "@/components/os/nav";
-import { ATTENTION_REASONS } from "@/lib/derive/attention";
 import {
-  ATTENTION_RULES,
+  ARCHITECTURE_LAYERS,
   landingLedger,
-  LOOP_COPY,
-  loopStatusSentence,
-  PRINCIPLE_COPY,
-  STACK,
+  PREVIEW,
+  ROADMAP,
+  STATUS_LABEL,
+  STATUS_PANEL,
+  TRUST_ENFORCED,
+  type Status,
 } from "@/lib/site/landing";
+import * as landing from "@/lib/site/landing";
 
 /**
- * The front page is the only surface with no rows behind it, which makes it the
- * only surface where a false claim cannot be contradicted by the data. These
- * tests are that contradiction: they hold the page to the navigation, to the
- * derivation, and to the loop it says it serves.
+ * The front page is the only surface with no rows behind it, which makes it
+ * the only surface where a false claim cannot be contradicted by the data.
+ * These tests are that contradiction: they hold the page to the navigation,
+ * to its own status vocabulary, and to the marketing language the product has
+ * banned for itself.
  *
- * See docs/DECISIONS/0005-the-front-page-states-the-build.md.
+ * See docs/DECISIONS/0007-the-front-page-is-a-product-document.md.
  */
+
+const STATUSES: Status[] = ["running", "in_development", "planned", "proposed"];
 
 describe("the ledger of what works", () => {
   it("names exactly the surfaces the navigation serves", () => {
@@ -63,90 +68,93 @@ describe("the ledger of what works", () => {
     expect(after.absent.map((item) => item.label)).not.toContain("Memory");
     expect(after.working.map((item) => item.label)).toContain("Memory");
   });
+});
 
-  it("says where an absent surface sits in the plan, so it is not a vague promise", () => {
-    for (const absent of landingLedger(NAV_ITEMS).absent) {
-      expect(absent.phase).toMatch(/^Phase \d$/);
-      expect(absent.detail.length).toBeGreaterThan(0);
+describe("the status vocabulary", () => {
+  it("labels every status", () => {
+    for (const status of STATUSES) {
+      expect(STATUS_LABEL[status].trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("claims 'running' only where the repository can back it", () => {
+    // The only running architecture layers are the ones that ship: surfaces
+    // and the audit trail. Everything intelligent is not running, by design.
+    const running = ARCHITECTURE_LAYERS.filter((layer) => layer.status === "running");
+    expect(running.map((layer) => layer.name)).toEqual(["Audit"]);
+
+    for (const layer of ARCHITECTURE_LAYERS) {
+      expect(STATUSES).toContain(layer.status);
+      expect(layer.note.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it("presents the Command Center preview as planned, never as a screenshot", () => {
+    expect(PREVIEW.status).toBe("planned");
+    expect(PREVIEW.caption.toLowerCase()).toContain("no live system");
+  });
+
+  it("keeps the hero status panel factual about what does not exist", () => {
+    const values = STATUS_PANEL.map((row) => `${row.label} ${row.value}`).join(" ");
+    expect(values).toContain("Not yet built");
+    expect(values).toContain("None");
+
+    // Nothing in the panel may claim a capability is running except the two
+    // facts the repository enforces: the phase itself, and isolation.
+    const running = STATUS_PANEL.filter((row) => row.status === "running");
+    expect(running.map((row) => row.label)).toEqual(["System status", "Account isolation"]);
+  });
+});
+
+describe("the roadmap", () => {
+  it("has exactly one phase in progress and none complete", () => {
+    const inProgress = ROADMAP.filter((phase) => phase.status === "in_progress");
+    expect(inProgress).toHaveLength(1);
+    expect(inProgress[0]?.name).toBe("Foundation");
+
+    for (const phase of ROADMAP) {
+      expect(["in_progress", "planned"]).toContain(phase.status);
+    }
+  });
+
+  it("numbers phases consecutively", () => {
+    expect(ROADMAP.map((phase) => phase.index)).toEqual(
+      ROADMAP.map((_, i) => String(i + 1).padStart(2, "0")),
+    );
+  });
+});
+
+describe("trust claims", () => {
+  it("pairs every enforced claim with its mechanism", () => {
+    expect(TRUST_ENFORCED.length).toBeGreaterThan(0);
+    for (const item of TRUST_ENFORCED) {
+      expect(item.mechanism.trim().length).toBeGreaterThan(10);
     }
   });
 });
 
-describe("the attention rules the page prints", () => {
-  it("describes every rule the derivation can emit, and no others", () => {
-    expect(ATTENTION_RULES.map((rule) => rule.reason)).toEqual([
-      ...ATTENTION_REASONS,
-    ]);
-  });
+describe("the language the product banned for itself", () => {
+  it("never appears anywhere in the page copy", () => {
+    const copy = JSON.stringify(landing).toLowerCase();
 
-  it("gives each rule a description", () => {
-    for (const rule of ATTENTION_RULES) {
-      expect(rule.detail.trim().length).toBeGreaterThan(0);
-    }
-  });
-});
+    const banned = [
+      "revolutionary",
+      "game-changing",
+      "game changing",
+      "unlock",
+      "supercharge",
+      "world's most",
+      "the future is here",
+      "military",
+      "enterprise-grade",
+      "unbreakable",
+      "total privacy",
+      "cutting-edge",
+      "urgent",
+    ];
 
-describe("the loop, as the page states it", () => {
-  it("covers the six stages in order", () => {
-    expect(LOOP_COPY.map((stage) => stage.stage)).toEqual([
-      "Observe",
-      "Understand",
-      "Recommend",
-      "Approve",
-      "Act",
-      "Remember",
-    ]);
-  });
-
-  it("marks each stage as running or as designed but not built", () => {
-    for (const stage of LOOP_COPY) {
-      expect(["running", "designed"]).toContain(stage.status);
-    }
-
-    expect(LOOP_COPY.some((stage) => stage.status === "designed")).toBe(true);
-  });
-
-  it("counts the stages for the hero rather than letting it claim a number", () => {
-    expect(loopStatusSentence()).toBe(
-      "Four of those six stages run today, on deterministic code and no model. The other two are designed and not built, and this page says which.",
-    );
-  });
-
-  it("recounts when a stage starts running, so the hero cannot go stale", () => {
-    const oneLeft = loopStatusSentence(
-      LOOP_COPY.map((stage) =>
-        stage.stage === "Act" ? stage : { ...stage, status: "running" as const },
-      ),
-    );
-    expect(oneLeft).toContain("Five of those six stages run today");
-    expect(oneLeft).toContain("The remaining one is designed and not built");
-
-    const allRunning = loopStatusSentence(
-      LOOP_COPY.map((stage) => ({ ...stage, status: "running" as const })),
-    );
-    expect(allRunning).toBe(
-      "Six of those six stages run today, on deterministic code and no model. The loop is closed.",
-    );
-  });
-
-  it("mentions a model in a running stage only to deny that one is involved", () => {
-    for (const stage of LOOP_COPY.filter((item) => item.status === "running")) {
-      const text = `${stage.claim} ${stage.detail}`.toLowerCase();
-      if (text.includes("model")) expect(text).toMatch(/no model/);
-    }
-  });
-});
-
-describe("the supporting copy", () => {
-  it("gives every principle a place it is enforced", () => {
-    for (const principle of PRINCIPLE_COPY) {
-      expect(principle.enforcedBy.trim().length).toBeGreaterThan(0);
-    }
-  });
-
-  it("names no version numbers in the stack, which would go stale unnoticed", () => {
-    for (const entry of STACK) {
-      expect(`${entry.name} ${entry.role}`).not.toMatch(/\d+\.\d+/);
+    for (const phrase of banned) {
+      expect(copy, `banned phrase "${phrase}" found in landing copy`).not.toContain(phrase);
     }
   });
 });

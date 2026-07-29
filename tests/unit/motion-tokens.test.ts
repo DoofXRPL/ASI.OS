@@ -6,7 +6,7 @@ import { MOTION, staggerDelayMs } from "@/lib/site/motion";
 /**
  * The stylesheet owns the motion language; `lib/site/motion.ts` mirrors the
  * values script code needs. Two sources of the same number is exactly the kind
- * of drift that ends with a page whose exit plays at one speed and navigates at
+ * of drift that ends with staggers computed at one speed and rendered at
  * another — so the mirror is held to the stylesheet here, token by token.
  */
 const css = readFileSync(join(process.cwd(), "app", "globals.css"), "utf8");
@@ -21,18 +21,17 @@ describe("the motion token mirror", () => {
   it("matches every duration in the stylesheet", () => {
     expect(token("--duration-hover")).toBe(`${MOTION.durationHoverMs}ms`);
     expect(token("--duration-reveal")).toBe(`${MOTION.durationRevealMs}ms`);
-    expect(token("--duration-page")).toBe(`${MOTION.durationPageMs}ms`);
     expect(token("--motion-stagger-step")).toBe(`${MOTION.staggerStepMs}ms`);
   });
 
-  it("matches the distance and the blur", () => {
+  it("matches the distance and the curve", () => {
     expect(token("--motion-distance")).toBe(`${MOTION.distancePx}px`);
-    expect(token("--motion-blur")).toBe(`${MOTION.blurPx}px`);
+    expect(token("--ease-out")).toBe(MOTION.easeOut);
   });
 
-  it("matches both curves", () => {
-    expect(token("--ease-out")).toBe(MOTION.easeOut);
-    expect(token("--ease-exit")).toBe(MOTION.easeExit);
+  it("holds the language to entrance-only motion", () => {
+    // The old direction had exit transitions and blur; this one does not.
+    expect(css).not.toMatch(/--duration-page|--ease-exit|--motion-blur/);
   });
 });
 

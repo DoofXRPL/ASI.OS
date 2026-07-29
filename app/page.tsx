@@ -1,19 +1,17 @@
 import type { Metadata } from "next";
 import { NAV_ITEMS } from "@/components/os/nav";
-import { AmbientBackdrop } from "@/components/site/ambient/ambient-backdrop";
-import { ClosingSection } from "@/components/site/closing-section";
+import { AccessSection } from "@/components/site/access-section";
+import { AgentsSection } from "@/components/site/agents-section";
+import { ApprovalSection } from "@/components/site/approval-section";
+import { ArchitectureSection } from "@/components/site/architecture-section";
 import { Hero } from "@/components/site/hero";
-import { CustomCursor } from "@/components/site/interaction/custom-cursor";
-import { PointerRoot } from "@/components/site/interaction/pointer-root";
-import { PointerSpotlight } from "@/components/site/interaction/pointer-spotlight";
-import { ScrollProgress } from "@/components/site/interaction/scroll-progress";
-import { LoopSection } from "@/components/site/loop-section";
-import { PrinciplesSection } from "@/components/site/principles-section";
-import { RealitySection } from "@/components/site/reality-section";
+import { MemorySection } from "@/components/site/memory-section";
+import { PreviewSection } from "@/components/site/preview-section";
+import { ProblemSection } from "@/components/site/problem-section";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
-import { StackSection } from "@/components/site/stack-section";
-import { TodaySection } from "@/components/site/today-section";
+import { StatusRoadmapSection } from "@/components/site/status-roadmap-section";
+import { TrustSection } from "@/components/site/trust-section";
 import { getAuthedUser } from "@/lib/auth/session";
 import { landingLedger } from "@/lib/site/landing";
 
@@ -29,25 +27,24 @@ export const dynamic = "force-dynamic";
  * so the default stays closed.
  */
 export const metadata: Metadata = {
-  title: "Adaptive Systems Interface",
+  title: "ASI.OS — The Intelligence Operating System",
   description:
-    "A private intelligence layer for one person. Observe, understand, recommend, approve, act, remember — with isolation enforced by the database and nothing shown that cannot be traced to a record you own.",
+    "ASI.OS is a personal intelligence operating system being built to connect persistent memory, specialized agents, model routing, and permission-based execution in one human-controlled system.",
   robots: { index: true, follow: true },
 };
 
 /**
- * ASI OS is a private system, so the front page sells nothing and shows no data.
- * It explains the loop, states which parts of it run, and offers the single door
- * that exists. A signed-in visitor is not redirected away: the header and both
- * calls to action simply become the way back into their own records, because a
- * root that bounces you is a root you can never read.
+ * A technical product document, light-first, in the order a serious reader
+ * would ask questions: what is it, what does it look like, what problem, how
+ * is it built, what remembers, who acts, who approves, why trust it, what runs
+ * today, and how to get in. Every capability carries a visible build status,
+ * and mock interfaces appear only as labelled design targets.
  *
- * The page is assembled from five separated layers — static sections, tokens,
- * motion, ambient, interaction — recorded in ADR 0006. The interaction and
- * ambient pieces mount here exactly once; sections never reach around them.
+ * A signed-in visitor is not redirected away: the calls to action become the
+ * way back into their own records, because a root that bounces you is a root
+ * you can never read.
  *
- * See docs/DECISIONS/0005-the-front-page-states-the-build.md and
- * docs/DECISIONS/0006-the-front-page-is-five-layers.md.
+ * See docs/DECISIONS/0005..0007 for how this page earned each of its rules.
  */
 export default async function RootPage() {
   const user = await getAuthedUser();
@@ -57,35 +54,28 @@ export default async function RootPage() {
   return (
     <>
       {/*
-       * The scroll reveals start hidden in CSS. Without JavaScript nothing would
-       * ever mark them visible, so the page states its own fallback rather than
-       * rendering blank.
+       * The scroll reveals start hidden in CSS. Without JavaScript nothing
+       * would ever mark them visible, so the page states its own fallback
+       * rather than rendering blank.
        */}
       <noscript>
-        <style>{`.reveal{opacity:1 !important;transform:none !important;filter:none !important}`}</style>
+        <style>{`.reveal{opacity:1 !important;transform:none !important}`}</style>
       </noscript>
 
-      {/* Interaction layer: pointer state, scroll state, and their consumers. */}
-      <PointerRoot />
-      <ScrollProgress />
-      <CustomCursor />
-      <PointerSpotlight />
-
-      {/* Ambient layer: the room the interface sits in. */}
-      <AmbientBackdrop />
-
-      {/* Static layer. `data-site` scopes the cursor and the page transition. */}
-      <div id="top" data-site className="relative z-10 flex min-h-dvh flex-col">
+      <div id="top" className="site-light flex min-h-dvh flex-col bg-canvas text-carbon [color-scheme:light]">
         <SiteHeader signedIn={signedIn} />
 
         <main id="content" className="flex-1">
           <Hero signedIn={signedIn} />
-          <LoopSection />
-          <TodaySection />
-          <PrinciplesSection />
-          <RealitySection ledger={ledger} signedIn={signedIn} />
-          <StackSection />
-          <ClosingSection signedIn={signedIn} />
+          <PreviewSection />
+          <ProblemSection />
+          <ArchitectureSection />
+          <MemorySection />
+          <AgentsSection />
+          <ApprovalSection />
+          <TrustSection />
+          <StatusRoadmapSection ledger={ledger} />
+          <AccessSection />
         </main>
 
         <SiteFooter />

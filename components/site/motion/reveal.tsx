@@ -11,9 +11,9 @@ export type RevealDirection = "up" | "down" | "left" | "right" | "none";
  * The one entrance.
  *
  * Every arrival on the front page — the hero on load, a section on scroll — is
- * this component: rise by the token distance, shed the token blur, fade in on
- * the token curve. Call sites choose a direction and a stagger index and
- * nothing else, which is what keeps sixty entrances feeling like one decision.
+ * this component: rise by the token distance and fade in on the token curve.
+ * Call sites choose a direction and a stagger index and nothing else, which is
+ * what keeps sixty entrances feeling like one decision.
  *
  * Entrance only, on purpose: content that fades out as it leaves is content the
  * reader cannot return to. The hidden state lives in CSS, so a visitor with

@@ -3,14 +3,10 @@ import { cn } from "@/components/ui/cn";
 /**
  * The ASI mark: a north star, blacked out.
  *
- * The star itself is filled with the page background rather than with ink, so it
- * reads as a silhouette cut out of the light behind it. That is the whole idea of
- * the product in one shape — the system is a fixed point you navigate by, and it
- * holds nothing of its own.
- *
- * The glow is drawn in CSS rather than as an SVG gradient on purpose: gradient
- * `id`s collide when a mark appears more than once on a page, and a server
- * component cannot call `useId` to make them unique.
+ * On dark surfaces the star is filled with the page background and reads as a
+ * silhouette cut out of the light behind it; on the light site it is simply a
+ * solid near-black star. Both are the same idea — a fixed point to navigate
+ * by that holds nothing of its own — with no glow, no rotation, no theatre.
  */
 
 /** Concave four-point star, longer on the vertical axis, as a compass rose is. */
@@ -21,77 +17,85 @@ const STAR_PATH =
 const MINOR_RAYS_PATH =
   "M32 12 C32.7 26.9 35.2 29.6 52 32 C35.2 34.4 32.7 37.1 32 52 C31.3 37.1 28.8 34.4 12 32 C28.8 29.6 31.3 26.9 32 12 Z";
 
+export type MarkVariant = "dark" | "light";
+
 export function NorthstarMark({
   className,
-  /** The halo and the slow drift. Off wherever the mark is only an identifier. */
-  animated = false,
+  /** `dark` sits on the application's near-black; `light` on the site's paper. */
+  variant = "dark",
 }: {
   className?: string;
-  animated?: boolean;
+  variant?: MarkVariant;
 }) {
   return (
     <span
       aria-hidden="true"
       className={cn("relative inline-flex shrink-0 items-center justify-center", className)}
     >
-      {animated ? (
-        <>
-          {/*
-           * Softness is painted, not filtered: these two layers animate forever,
-           * and a blur() on a permanently animating layer costs real frame
-           * budget on machines without GPU compositing. The sweep's hard rim is
-           * faded with a radial mask instead.
-           */}
-          <span className="pointer-events-none absolute inset-[-140%] animate-halo bg-[radial-gradient(circle_closest-side,var(--color-accent)_0%,transparent_70%)] opacity-[0.14]" />
-          <span className="pointer-events-none absolute inset-[-40%] animate-spin-slow rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,var(--color-accent)_18deg,transparent_46deg,transparent_360deg)] opacity-[0.18] [mask-image:radial-gradient(circle_closest-side,transparent_25%,black_45%,transparent_72%)]" />
-        </>
-      ) : null}
-
-      <svg
-        viewBox="0 0 64 64"
-        fill="none"
-        className={cn("relative h-full w-full", animated && "animate-breathe")}
-      >
-        {/*
-         * The rim is drawn as the same star with a smaller copy of itself punched
-         * out of it, rather than as a stroke. A stroke would thin away at the
-         * points; this keeps the outline in proportion so the mark survives being
-         * shrunk to 24px in a header.
-         */}
-        <path d={STAR_PATH} className="fill-ink-muted/70" />
-        <path
-          d={STAR_PATH}
-          className="fill-void"
-          transform="translate(32 32) scale(0.9) translate(-32 -32)"
-        />
-        <path d={MINOR_RAYS_PATH} className="fill-ink-faint/40" />
-        <path
-          d={MINOR_RAYS_PATH}
-          className="fill-void"
-          transform="translate(32 32) scale(0.8) translate(-32 -32)"
-        />
-        <circle cx="32" cy="32" r="2" className="fill-accent/80" />
+      <svg viewBox="0 0 64 64" fill="none" className="relative h-full w-full">
+        {variant === "dark" ? (
+          <>
+            {/*
+             * The rim is the same star with a smaller copy punched out of it,
+             * rather than a stroke: a stroke would thin away at the points, and
+             * this keeps the outline in proportion down to a 24px header mark.
+             */}
+            <path d={STAR_PATH} className="fill-ink-muted/70" />
+            <path
+              d={STAR_PATH}
+              className="fill-void"
+              transform="translate(32 32) scale(0.9) translate(-32 -32)"
+            />
+            <path d={MINOR_RAYS_PATH} className="fill-ink-faint/40" />
+            <path
+              d={MINOR_RAYS_PATH}
+              className="fill-void"
+              transform="translate(32 32) scale(0.8) translate(-32 -32)"
+            />
+            <circle cx="32" cy="32" r="2" className="fill-accent/80" />
+          </>
+        ) : (
+          <>
+            <path d={MINOR_RAYS_PATH} className="fill-graphite/45" />
+            <path d={STAR_PATH} className="fill-carbon" />
+            <circle cx="32" cy="32" r="2" className="fill-accent" />
+          </>
+        )}
       </svg>
     </span>
   );
 }
 
-/** The mark with the name beside it. `full` spells the name out. */
+/** The mark with the name beside it. `caption` adds the Northstar attribution. */
 export function Wordmark({
-  full = false,
+  variant = "dark",
+  caption = false,
   className,
 }: {
-  full?: boolean;
+  variant?: MarkVariant;
+  caption?: boolean;
   className?: string;
 }) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <NorthstarMark className="size-7" />
-      <span className="flex flex-col leading-none">
-        <span className="text-sm font-medium tracking-tight text-ink">ASI OS</span>
-        {full ? (
-          <span className="mt-1 text-[11px] tracking-tight text-ink-faint">
-            Adaptive Systems Interface
+      <NorthstarMark variant={variant} className="size-6" />
+      <span className="flex items-baseline gap-2 leading-none">
+        <span
+          className={cn(
+            "text-sm font-semibold tracking-tight",
+            variant === "light" ? "text-carbon" : "text-ink",
+          )}
+        >
+          ASI.OS
+        </span>
+        {caption ? (
+          <span
+            className={cn(
+              "text-[11px] tracking-tight",
+              variant === "light" ? "text-mist" : "text-ink-faint",
+            )}
+          >
+            by Northstar Labs
           </span>
         ) : null}
       </span>

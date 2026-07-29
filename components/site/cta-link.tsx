@@ -1,21 +1,16 @@
+import Link from "next/link";
 import type { ComponentProps } from "react";
 import { cn } from "@/components/ui/cn";
-import { Magnetic } from "./interaction/magnetic";
-import { TransitionLink } from "./motion/transition-link";
 
 /**
- * The front page's two link-buttons, stated once.
- *
- * Internal destinations leave through the page transition and lean toward the
- * pointer; the styling itself stays in the static layer and draws only on
- * tokens. There is deliberately no third variant — a page with one real action
- * does not need a palette of buttons.
+ * The page's two link-buttons, stated once. Plain links with button geometry:
+ * no magnetism, no exit theatre — a click navigates, immediately. There is
+ * deliberately no third variant; a page with one real action does not need a
+ * palette of buttons.
  */
 const VARIANTS = {
-  primary:
-    "bg-accent text-void hover:bg-accent/90",
-  secondary:
-    "border border-line-strong bg-raised text-ink hover:border-ink-faint",
+  primary: "bg-carbon text-white hover:bg-carbon/85",
+  secondary: "border border-edge-strong bg-panel text-carbon hover:border-carbon/45",
 } as const;
 
 export function CtaLink({
@@ -23,22 +18,20 @@ export function CtaLink({
   className,
   children,
   ...rest
-}: ComponentProps<typeof TransitionLink> & {
+}: ComponentProps<typeof Link> & {
   variant?: keyof typeof VARIANTS;
 }) {
   return (
-    <Magnetic>
-      <TransitionLink
-        {...rest}
-        className={cn(
-          "inline-flex h-10 items-center rounded-md px-4 text-sm font-medium",
-          "transition-colors duration-[var(--duration-hover)] ease-[var(--ease-out)]",
-          VARIANTS[variant],
-          className,
-        )}
-      >
-        {children}
-      </TransitionLink>
-    </Magnetic>
+    <Link
+      {...rest}
+      className={cn(
+        "inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-medium",
+        "transition-colors duration-[var(--duration-hover)] ease-[var(--ease-out)]",
+        VARIANTS[variant],
+        className,
+      )}
+    >
+      {children}
+    </Link>
   );
 }
