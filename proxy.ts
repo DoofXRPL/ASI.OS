@@ -52,6 +52,13 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
 export const config = {
   matcher: [
+    /*
+     * The front page is public and protects nothing, but it does ask whether the
+     * visitor is signed in so it can offer the way back in. Server Components
+     * cannot write refreshed session cookies, so without this entry a valid
+     * session with an expired access token would read as signed out here.
+     */
+    "/",
     "/today/:path*",
     "/inbox/:path*",
     "/projects/:path*",

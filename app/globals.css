@@ -53,6 +53,93 @@
   --radius-card: 0.625rem;
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /*
+   * Motion, and only on the front page.
+   *
+   * The private surfaces animate nothing but state changes: a page that moves
+   * while you read your own commitments is a page arguing with you. The front
+   * page is the one place where motion has a job — one orchestrated entrance,
+   * and a mark that looks alive — so every keyframe below is used there.
+   */
+  --animate-rise: rise 0.85s var(--ease-out) both;
+  --animate-halo: halo 8s ease-in-out infinite;
+  --animate-breathe: breathe 7s ease-in-out infinite;
+  --animate-spin-slow: spin 26s linear infinite;
+  --animate-drift: drift 24s ease-in-out infinite alternate;
+  --animate-twinkle: twinkle 6s ease-in-out infinite;
+  --animate-trace: trace 6s linear infinite;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes halo {
+    0%,
+    100% {
+      opacity: 0.1;
+      transform: scale(0.92);
+    }
+    50% {
+      opacity: 0.2;
+      transform: scale(1.06);
+    }
+  }
+
+  @keyframes breathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.035);
+    }
+  }
+
+  @keyframes drift {
+    from {
+      transform: translate3d(-3%, -2%, 0) scale(1);
+    }
+    to {
+      transform: translate3d(3%, 2%, 0) scale(1.08);
+    }
+  }
+
+  @keyframes twinkle {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 0.75;
+    }
+  }
+
+  /*
+   * A single point of light travelling the loop. The element is a quarter of the
+   * rail wide, so -100% to 400% of its own width carries it across exactly once.
+   */
+  @keyframes trace {
+    from {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    10%,
+    90% {
+      opacity: 1;
+    }
+    to {
+      transform: translateX(400%);
+      opacity: 0;
+    }
+  }
 }
 
 :root {
@@ -116,4 +203,55 @@ summary::-webkit-details-marker {
  */
 .field-grows {
   field-sizing: content;
+}
+
+/*
+ * Front page only, below.
+ *
+ * Two textures, both structural rather than illustrative: a survey grid, and a
+ * sparse field of stars for a mark that is a star to navigate by. Both are drawn
+ * in gradients so the page ships no images.
+ */
+.texture-grid {
+  background-image:
+    linear-gradient(to right, var(--color-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-line) 1px, transparent 1px);
+  background-size: 72px 72px;
+  /* Fades to nothing before the edges, so the grid never looks like a table. */
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 10%, transparent 75%);
+}
+
+.texture-stars {
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, var(--color-ink-muted) 50%, transparent 51%),
+    radial-gradient(1px 1px at 78% 14%, var(--color-ink-muted) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 32% 62%, var(--color-accent) 50%, transparent 51%),
+    radial-gradient(1px 1px at 62% 78%, var(--color-ink-faint) 50%, transparent 51%),
+    radial-gradient(1px 1px at 90% 54%, var(--color-ink-faint) 50%, transparent 51%),
+    radial-gradient(1px 1px at 46% 8%, var(--color-ink-faint) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 6% 74%, var(--color-ink-muted) 50%, transparent 51%);
+}
+
+/*
+ * Sections arrive as they are reached. The transform is removed rather than
+ * animated under reduced motion, so the layout never settles under the reader.
+ */
+.reveal {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+  transition:
+    opacity 0.7s var(--ease-out),
+    transform 0.7s var(--ease-out);
+}
+
+.reveal[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
 }
