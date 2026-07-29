@@ -58,7 +58,7 @@ export default async function RootPage() {
 
       <PointerGlow />
 
-      <div className="relative z-10 flex min-h-dvh flex-col">
+      <div id="top" className="relative z-10 flex min-h-dvh flex-col">
         <SiteHeader signedIn={signedIn} />
 
         <main id="content" className="flex-1">

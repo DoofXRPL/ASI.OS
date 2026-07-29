@@ -22,13 +22,19 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
       />
 
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-6 px-5 md:px-8">
-        <Link
-          href="/"
+        {/*
+         * An in-page jump rather than a link to `/`, because this header only
+         * appears on `/`. Navigating to the route you are already on leaves the
+         * scroll position where it was, so the mark would look broken; the top of
+         * this page is what "home" means from here.
+         */}
+        <a
+          href="#top"
           className="rounded-md transition-opacity duration-150 hover:opacity-80"
         >
           <Wordmark />
-          <span className="sr-only">Adaptive Systems Interface — home</span>
-        </Link>
+          <span className="sr-only">— back to the top</span>
+        </a>
 
         <nav aria-label="Front page sections" className="hidden md:block">
           <ul className="flex items-center gap-1">
