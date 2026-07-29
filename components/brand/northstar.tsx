@@ -46,20 +46,25 @@ export function NorthstarMark({
         fill="none"
         className={cn("relative h-full w-full", animated && "animate-breathe")}
       >
-        {/* The rim light: the same star, one step out, so only its edge shows. */}
-        <path d={STAR_PATH} className="fill-ink-muted/45" />
+        {/*
+         * The rim is drawn as the same star with a smaller copy of itself punched
+         * out of it, rather than as a stroke. A stroke would thin away at the
+         * points; this keeps the outline in proportion so the mark survives being
+         * shrunk to 24px in a header.
+         */}
+        <path d={STAR_PATH} className="fill-ink-muted/70" />
         <path
           d={STAR_PATH}
           className="fill-void"
-          transform="translate(32 32) scale(0.955) translate(-32 -32)"
+          transform="translate(32 32) scale(0.9) translate(-32 -32)"
         />
-        <path d={MINOR_RAYS_PATH} className="fill-ink-faint/25" />
+        <path d={MINOR_RAYS_PATH} className="fill-ink-faint/40" />
         <path
           d={MINOR_RAYS_PATH}
           className="fill-void"
-          transform="translate(32 32) scale(0.9) translate(-32 -32)"
+          transform="translate(32 32) scale(0.8) translate(-32 -32)"
         />
-        <circle cx="32" cy="32" r="1.6" className="fill-accent/70" />
+        <circle cx="32" cy="32" r="2" className="fill-accent/80" />
       </svg>
     </span>
   );
@@ -75,7 +80,7 @@ export function Wordmark({
 }) {
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <NorthstarMark className="size-6" />
+      <NorthstarMark className="size-7" />
       <span className="flex flex-col leading-none">
         <span className="text-sm font-medium tracking-tight text-ink">ASI OS</span>
         {full ? (

@@ -26,7 +26,7 @@ export function LoopSection() {
         <Reveal delayMs={80} className="relative mt-14">
           <div
             aria-hidden="true"
-            className="absolute inset-x-0 top-[5px] hidden h-px overflow-hidden bg-line lg:block"
+            className="absolute inset-x-0 top-[5px] hidden h-px overflow-hidden bg-line [mask-image:linear-gradient(to_right,transparent,black_3%,black_88%,transparent)] lg:block"
           >
             <div className="h-px w-1/4 animate-trace bg-gradient-to-r from-transparent via-accent to-transparent" />
           </div>
