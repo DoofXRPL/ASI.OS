@@ -3,15 +3,23 @@
 /*
  * ASI OS design tokens.
  *
- * Calm by default, intense only when necessary. Colour is rationed and carries
- * meaning: blue is the system thinking, amber means something needs you, sage
- * means confirmed or healthy, red means something failed. Nothing is coloured
- * for decoration, so when colour appears it can be trusted to mean something.
+ * Two palettes with one meaning system:
  *
- * Machine facts — timestamps, identifiers, counts — are set in mono so they read
- * as data rather than prose.
+ * The application palette is dark and calm — every private surface renders one
+ * person's records against near-black, and colour is rationed: blue is the
+ * system thinking, amber means something needs you, sage means confirmed, red
+ * means failed. Nothing is coloured for decoration.
+ *
+ * The site palette is light and neutral — the public front page is a technical
+ * product document, not a cinematic reveal, so it reads as ink on paper with
+ * thin borders and one restrained accent. Dark surfaces appear there only to
+ * show the product, which is itself dark.
+ *
+ * Machine facts — timestamps, identifiers, counts, statuses — are set in mono
+ * so they read as data rather than prose.
  */
 @theme {
+  /* Application (dark) palette. */
   --color-void: #08090b;
   --color-surface: #0e1014;
   --color-raised: #14171d;
@@ -31,6 +39,19 @@
   --color-danger: #e2686b;
   --color-danger-dim: #3a1f21;
 
+  /* Site (light) palette. Text colours hold WCAG AA on canvas and panel. */
+  --color-canvas: #fafafa;
+  --color-panel: #ffffff;
+  --color-wash: #f2f4f6;
+  --color-carbon: #101418;
+  --color-graphite: #4a545f;
+  --color-mist: #6e7883;
+  --color-edge: #e5e8ec;
+  --color-edge-strong: #c9cfd6;
+  --color-accent-ink: #1e5fd6;
+  --color-confirmed-ink: #0e7a4b;
+  --color-attention-ink: #8a5f10;
+
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
     Arial, sans-serif;
@@ -39,9 +60,9 @@
     monospace;
 
   /*
-   * The only step larger than body text, and it is reserved for a sentence
-   * about your situation. ASI OS states things; it does not display metrics, so
-   * there is deliberately no size here for a large number.
+   * The only step larger than body text inside the application, reserved for a
+   * sentence about your situation. ASI OS states things; it does not display
+   * metrics, so there is deliberately no size here for a large number.
    */
   --text-statement: 1.375rem;
   --text-statement--line-height: 1.35;
@@ -52,7 +73,25 @@
 
   --radius-card: 0.625rem;
 
+  /*
+   * The motion language, as tokens.
+   *
+   * Motion on the front page communicates system behaviour and nothing else: a
+   * short rise-and-fade when content enters, staggered in one fixed step, and
+   * quick hover feedback. These five values ARE the motion design; components
+   * combine them but never invent their own. `lib/site/motion.ts` mirrors the
+   * ones script code needs, and `tests/unit/motion-tokens.test.ts` fails if
+   * the two drift apart.
+   *
+   * The private surfaces animate nothing but state changes: a page that moves
+   * while you read your own commitments is a page arguing with you.
+   */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-hover: 150ms;
+  --duration-reveal: 550ms;
+  --motion-stagger-step: 60ms;
+  --motion-distance: 12px;
+  --shadow-lift: 0 1px 2px rgb(16 20 24 / 0.05), 0 10px 28px -18px rgb(16 20 24 / 0.18);
 }
 
 :root {
@@ -61,6 +100,13 @@
 
 html {
   background-color: var(--color-void);
+}
+
+/* Anchor navigation glides; reduced motion snaps it back below. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 body {
@@ -78,6 +124,11 @@ body {
   border-radius: 3px;
 }
 
+/* The light page needs the darker accent for the same visible focus. */
+.site-light :focus-visible {
+  outline-color: var(--color-accent-ink);
+}
+
 /* Motion conveys state; it is never entertainment, and it is always optional. */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -93,6 +144,11 @@ body {
 ::selection {
   background-color: var(--color-accent-dim);
   color: var(--color-ink);
+}
+
+.site-light ::selection {
+  background-color: #d7e3fb;
+  color: var(--color-carbon);
 }
 
 /*
@@ -116,4 +172,68 @@ summary::-webkit-details-marker {
  */
 .field-grows {
   field-sizing: content;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Front page, motion layer.
+ *
+ * One entrance, used everywhere: rise by --motion-distance and fade in over
+ * --duration-reveal on --ease-out, staggered in multiples of
+ * --motion-stagger-step. Components set only a direction and a delay; nothing
+ * else about an entrance is decided at the call site. No blur, no scaling, no
+ * exit animation — content leaves the way documents do, by being scrolled.
+ * ------------------------------------------------------------------------- */
+.reveal {
+  opacity: 0;
+  transform: translate3d(var(--reveal-x, 0px), var(--reveal-y, var(--motion-distance)), 0);
+  transition:
+    opacity var(--duration-reveal) var(--ease-out),
+    transform var(--duration-reveal) var(--ease-out);
+}
+
+/* A hint only while hidden; settled content should not hold GPU memory. */
+.reveal[data-visible="false"] {
+  will-change: opacity, transform;
+}
+
+.reveal[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Hover is part of the same language: the hover duration on the same curve. */
+.hover-raise {
+  transition:
+    transform var(--duration-hover) var(--ease-out),
+    background-color var(--duration-hover) var(--ease-out),
+    border-color var(--duration-hover) var(--ease-out),
+    box-shadow var(--duration-hover) var(--ease-out);
+}
+
+@media (hover: hover) {
+  .hover-raise:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lift);
+  }
+}
+
+/* ------------------------------------------------------------------------- *
+ * Front page, surfaces.
+ *
+ * One texture, and a quiet one: a survey grid in hairlines, fading out before
+ * it can read as a table. Structure, not atmosphere.
+ * ------------------------------------------------------------------------- */
+.site-grid-faint {
+  background-image:
+    linear-gradient(to right, var(--color-edge) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-edge) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, black 20%, transparent 90%);
 }
