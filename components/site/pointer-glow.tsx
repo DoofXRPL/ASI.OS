@@ -55,7 +55,7 @@ export function PointerGlow() {
       className="pointer-events-none fixed inset-0 z-0 opacity-0 transition-opacity duration-700"
       style={{
         background:
-          "radial-gradient(520px circle at var(--pointer-x, 50%) var(--pointer-y, 0px), color-mix(in oklab, var(--color-accent) 13%, transparent), transparent 68%)",
+          "radial-gradient(560px circle at var(--pointer-x, 50%) var(--pointer-y, 0px), color-mix(in oklab, var(--color-accent) 16%, transparent), transparent 68%)",
       }}
     />
   );
