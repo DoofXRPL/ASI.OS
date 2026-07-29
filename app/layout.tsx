@@ -20,7 +20,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // The attribute tells Next.js the smooth scrolling is deliberate, so it can
+    // suppress it during route transitions instead of warning about it.
+    <html lang="en" data-scroll-behavior="smooth">
       <body className="min-h-dvh antialiased">{children}</body>
     </html>
   );

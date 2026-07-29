@@ -1,6 +1,6 @@
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { ATTENTION_RULES } from "@/lib/site/landing";
-import { Reveal } from "./reveal";
+import { Reveal } from "./motion/reveal";
 import { SectionHeading } from "./section-heading";
 
 /**
@@ -35,7 +35,7 @@ export function TodaySection() {
           </p>
         </Reveal>
 
-        <Reveal delayMs={80}>
+        <Reveal index={1}>
           <Card>
             <CardHeader
               title="Attention rules"

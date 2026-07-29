@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { NAV_ITEMS } from "@/components/os/nav";
+import { AmbientBackdrop } from "@/components/site/ambient/ambient-backdrop";
 import { ClosingSection } from "@/components/site/closing-section";
 import { Hero } from "@/components/site/hero";
+import { CustomCursor } from "@/components/site/interaction/custom-cursor";
+import { PointerRoot } from "@/components/site/interaction/pointer-root";
+import { PointerSpotlight } from "@/components/site/interaction/pointer-spotlight";
+import { ScrollProgress } from "@/components/site/interaction/scroll-progress";
 import { LoopSection } from "@/components/site/loop-section";
-import { PointerGlow } from "@/components/site/pointer-glow";
 import { PrinciplesSection } from "@/components/site/principles-section";
 import { RealitySection } from "@/components/site/reality-section";
 import { SiteFooter } from "@/components/site/site-footer";
@@ -38,7 +42,12 @@ export const metadata: Metadata = {
  * calls to action simply become the way back into their own records, because a
  * root that bounces you is a root you can never read.
  *
- * See docs/DECISIONS/0005-the-front-page-states-the-build.md.
+ * The page is assembled from five separated layers — static sections, tokens,
+ * motion, ambient, interaction — recorded in ADR 0006. The interaction and
+ * ambient pieces mount here exactly once; sections never reach around them.
+ *
+ * See docs/DECISIONS/0005-the-front-page-states-the-build.md and
+ * docs/DECISIONS/0006-the-front-page-is-five-layers.md.
  */
 export default async function RootPage() {
   const user = await getAuthedUser();
@@ -53,12 +62,20 @@ export default async function RootPage() {
        * rendering blank.
        */}
       <noscript>
-        <style>{`.reveal{opacity:1 !important;transform:none !important}`}</style>
+        <style>{`.reveal{opacity:1 !important;transform:none !important;filter:none !important}`}</style>
       </noscript>
 
-      <PointerGlow />
+      {/* Interaction layer: pointer state, scroll state, and their consumers. */}
+      <PointerRoot />
+      <ScrollProgress />
+      <CustomCursor />
+      <PointerSpotlight />
 
-      <div id="top" className="relative z-10 flex min-h-dvh flex-col">
+      {/* Ambient layer: the room the interface sits in. */}
+      <AmbientBackdrop />
+
+      {/* Static layer. `data-site` scopes the cursor and the page transition. */}
+      <div id="top" data-site className="relative z-10 flex min-h-dvh flex-col">
         <SiteHeader signedIn={signedIn} />
 
         <main id="content" className="flex-1">

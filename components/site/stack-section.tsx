@@ -1,5 +1,7 @@
+import { Fragment } from "react";
 import { STACK } from "@/lib/site/landing";
-import { Reveal } from "./reveal";
+import { Reveal } from "./motion/reveal";
+import { Stagger } from "./motion/stagger";
 import { SectionHeading } from "./section-heading";
 
 /**
@@ -20,16 +22,20 @@ export function StackSection() {
           />
         </Reveal>
 
-        <Reveal delayMs={80}>
-          <dl className="mt-12 grid gap-x-10 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
-            {STACK.map((entry) => (
-              <div key={entry.name} className="border-t border-line pt-4">
-                <dt className="text-sm font-medium text-ink">{entry.name}</dt>
-                <dd className="mt-1.5 text-xs/5 text-ink-muted">{entry.role}</dd>
-              </div>
-            ))}
-          </dl>
-        </Reveal>
+        {/* A dl may group its pairs in divs, so the stagger keeps its semantics. */}
+        <Stagger
+          as="dl"
+          from={1}
+          className="mt-12 grid gap-x-10 gap-y-6 sm:grid-cols-2 lg:grid-cols-4"
+          itemClassName="border-t border-line pt-4"
+        >
+          {STACK.map((entry) => (
+            <Fragment key={entry.name}>
+              <dt className="text-sm font-medium text-ink">{entry.name}</dt>
+              <dd className="mt-1.5 text-xs/5 text-ink-muted">{entry.role}</dd>
+            </Fragment>
+          ))}
+        </Stagger>
       </div>
     </section>
   );

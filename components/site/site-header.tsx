@@ -1,5 +1,6 @@
-import Link from "next/link";
 import { Wordmark } from "@/components/brand/northstar";
+import { Magnetic } from "./interaction/magnetic";
+import { TransitionLink } from "./motion/transition-link";
 
 const SECTIONS = [
   { href: "#loop", label: "The loop" },
@@ -25,12 +26,12 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
         {/*
          * An in-page jump rather than a link to `/`, because this header only
          * appears on `/`. Navigating to the route you are already on leaves the
-         * scroll position where it was, so the mark would look broken; the top of
-         * this page is what "home" means from here.
+         * scroll position where it was, so the mark would look broken; the top
+         * of this page is what "home" means from here.
          */}
         <a
           href="#top"
-          className="rounded-md transition-opacity duration-150 hover:opacity-80"
+          className="rounded-md transition-opacity duration-[var(--duration-hover)] ease-[var(--ease-out)] hover:opacity-80"
         >
           <Wordmark />
           <span className="sr-only">— back to the top</span>
@@ -42,7 +43,7 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
               <li key={section.href}>
                 <a
                   href={section.href}
-                  className="rounded-md px-3 py-2 text-sm text-ink-muted transition-colors duration-150 hover:bg-raised/70 hover:text-ink"
+                  className="rounded-md px-3 py-2 text-sm text-ink-muted transition-colors duration-[var(--duration-hover)] ease-[var(--ease-out)] hover:bg-raised/70 hover:text-ink"
                 >
                   {section.label}
                 </a>
@@ -51,12 +52,14 @@ export function SiteHeader({ signedIn }: { signedIn: boolean }) {
           </ul>
         </nav>
 
-        <Link
-          href={signedIn ? "/today" : "/login"}
-          className="inline-flex h-8 items-center rounded-md border border-line-strong bg-raised px-3 text-sm font-medium text-ink transition-colors duration-150 hover:border-ink-faint"
-        >
-          {signedIn ? "Open ASI OS" : "Sign in"}
-        </Link>
+        <Magnetic>
+          <TransitionLink
+            href={signedIn ? "/today" : "/login"}
+            className="inline-flex h-8 items-center rounded-md border border-line-strong bg-raised px-3 text-sm font-medium text-ink transition-colors duration-[var(--duration-hover)] ease-[var(--ease-out)] hover:border-ink-faint"
+          >
+            {signedIn ? "Open ASI OS" : "Sign in"}
+          </TransitionLink>
+        </Magnetic>
       </div>
     </header>
   );

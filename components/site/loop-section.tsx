@@ -1,15 +1,17 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/components/ui/cn";
 import { LOOP_COPY } from "@/lib/site/landing";
-import { Reveal } from "./reveal";
+import { Reveal } from "./motion/reveal";
+import { Stagger } from "./motion/stagger";
 import { SectionHeading } from "./section-heading";
 
 /**
  * The six stages, each marked for what it is right now.
  *
- * The light travels the whole rail even though half the loop is not built, which
- * is the one place on this page where the design is allowed to run ahead of the
- * code — the stages themselves say plainly which of them it is passing through.
+ * The light travels the whole rail even though a third of the loop is not
+ * built, which is the one place on this page where the design is allowed to
+ * run ahead of the code — the stages themselves say plainly which of them it
+ * is passing through.
  */
 export function LoopSection() {
   return (
@@ -23,7 +25,7 @@ export function LoopSection() {
           />
         </Reveal>
 
-        <Reveal delayMs={80} className="relative mt-14">
+        <div className="relative mt-14">
           <div
             aria-hidden="true"
             className="absolute inset-x-0 top-[5px] hidden h-px overflow-hidden bg-line [mask-image:linear-gradient(to_right,transparent,black_3%,black_88%,transparent)] lg:block"
@@ -31,12 +33,18 @@ export function LoopSection() {
             <div className="h-px w-1/4 animate-trace bg-gradient-to-r from-transparent via-accent to-transparent" />
           </div>
 
-          <ol className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-6">
+          <Stagger
+            as="ol"
+            itemAs="li"
+            from={1}
+            className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-6"
+            itemClassName="relative"
+          >
             {LOOP_COPY.map((stage, index) => {
               const running = stage.status === "running";
 
               return (
-                <li key={stage.stage} className="relative">
+                <article key={stage.stage}>
                   <span
                     aria-hidden="true"
                     className={cn(
@@ -49,7 +57,9 @@ export function LoopSection() {
                     {String(index + 1).padStart(2, "0")}
                   </p>
 
-                  <h3 className="mt-2 text-sm font-medium text-ink">{stage.stage}</h3>
+                  <h3 className="mt-2 text-sm font-medium text-ink">
+                    {stage.stage}
+                  </h3>
 
                   <Badge
                     tone={running ? "confirmed" : "neutral"}
@@ -60,11 +70,11 @@ export function LoopSection() {
 
                   <p className="mt-4 text-sm text-ink">{stage.claim}</p>
                   <p className="mt-2 text-xs/5 text-ink-muted">{stage.detail}</p>
-                </li>
+                </article>
               );
             })}
-          </ol>
-        </Reveal>
+          </Stagger>
+        </div>
       </div>
     </section>
   );

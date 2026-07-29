@@ -1,6 +1,6 @@
 import { Badge, StatusDot } from "@/components/ui/badge";
 import type { LandingLedger } from "@/lib/site/landing";
-import { Reveal } from "./reveal";
+import { Reveal } from "./motion/reveal";
 import { SectionHeading } from "./section-heading";
 
 /**
@@ -68,7 +68,7 @@ export function RealitySection({
             </p>
           </Reveal>
 
-          <Reveal delayMs={80}>
+          <Reveal index={1}>
             <div className="flex items-center gap-2">
               <StatusDot tone="neutral" />
               <h3 className="font-mono text-[11px] tracking-[0.24em] text-ink-muted uppercase">

@@ -36,8 +36,14 @@ export function NorthstarMark({
     >
       {animated ? (
         <>
-          <span className="pointer-events-none absolute inset-[-140%] animate-halo rounded-full bg-[radial-gradient(circle,var(--color-accent)_0%,transparent_62%)] opacity-[0.14] blur-2xl" />
-          <span className="pointer-events-none absolute inset-[-25%] animate-spin-slow rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,var(--color-accent)_18deg,transparent_46deg,transparent_360deg)] opacity-[0.22] blur-md" />
+          {/*
+           * Softness is painted, not filtered: these two layers animate forever,
+           * and a blur() on a permanently animating layer costs real frame
+           * budget on machines without GPU compositing. The sweep's hard rim is
+           * faded with a radial mask instead.
+           */}
+          <span className="pointer-events-none absolute inset-[-140%] animate-halo bg-[radial-gradient(circle_closest-side,var(--color-accent)_0%,transparent_70%)] opacity-[0.14]" />
+          <span className="pointer-events-none absolute inset-[-40%] animate-spin-slow rounded-full bg-[conic-gradient(from_0deg,transparent_0deg,var(--color-accent)_18deg,transparent_46deg,transparent_360deg)] opacity-[0.18] [mask-image:radial-gradient(circle_closest-side,transparent_25%,black_45%,transparent_72%)]" />
         </>
       ) : null}
 
