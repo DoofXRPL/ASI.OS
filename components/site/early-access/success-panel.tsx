@@ -20,17 +20,33 @@ import { MOTION } from "@/lib/site/motion";
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export function SuccessPanel() {
+  const panelRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const reduceMotion = useReducedMotion();
+  const arrived = useRef(false);
 
   useEffect(() => {
-    headingRef.current?.focus();
-  }, []);
+    // Runs once: `reduceMotion` resolving a moment later must not scroll the
+    // page a second time under someone already reading.
+    if (arrived.current) return;
+    arrived.current = true;
+
+    // The panel is scrolled into view, not the heading. Submitting happens at
+    // the foot of a long form, and focusing the heading brings only the heading
+    // into view — which leaves the checkmark, and its one animation, just above
+    // the top of the screen.
+    panelRef.current?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "center",
+    });
+    headingRef.current?.focus({ preventScroll: true });
+  }, [reduceMotion]);
 
   const duration = reduceMotion ? 0 : MOTION.durationRevealMs / 1000;
 
   return (
     <motion.div
+      ref={panelRef}
       initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: MOTION.distancePx }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration, ease: EASE }}
