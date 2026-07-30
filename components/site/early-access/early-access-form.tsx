@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { LoaderCircle } from "lucide-react";
-import { useActionState, useId, type FormEvent } from "react";
+import { startTransition, useActionState, useId, type FormEvent } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { SiteInput, SiteTextarea } from "@/components/site/form/control";
 import {
@@ -91,7 +91,12 @@ export function EarlyAccessForm() {
     const submitted = new FormData(event.currentTarget);
 
     void form.handleSubmit(
-      () => formAction(submitted),
+      // Inside a transition, because validation is asynchronous and this is no
+      // longer the submit event React was watching. Called bare, the action
+      // still runs and still records the request, but React never learns that
+      // a submission started — so `pending` stays false and the button gives
+      // no sign that anything is happening.
+      () => startTransition(() => formAction(submitted)),
       // Invalid. React Hook Form has already moved focus to the first field
       // that failed, which is the only thing left to do.
       () => undefined,
