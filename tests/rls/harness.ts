@@ -54,9 +54,14 @@ export async function connect(url = resolveDatabaseUrl()): Promise<Client> {
 export async function resetDatabase(url = resolveDatabaseUrl()): Promise<void> {
   const client = await connect(url);
   try {
+    // `access` is dropped here as well as `public` and `auth`. A migration
+    // that creates a schema this list does not know about would survive a
+    // reset and let one run's rows leak into the next, so a new schema means
+    // a new line here — see supabase/migrations/0003_early_access.sql.
     await client.query(`
       drop schema if exists public cascade;
       drop schema if exists auth cascade;
+      drop schema if exists access cascade;
       create schema public;
     `);
 
@@ -120,27 +125,84 @@ export async function asUser<T>(
   user: TestUser,
   work: (ctx: AuthenticatedContext) => Promise<T>,
 ): Promise<T> {
-  await client.query("begin");
-  try {
-    await client.query("select set_config('request.jwt.claims', $1, true)", [
-      JSON.stringify({ sub: user.id, role: "authenticated", email: user.email }),
-    ]);
-    await client.query("set local role authenticated");
-    return await work({
-      query: (sql, params) => client.query(sql, params),
-      userId: user.id,
-    });
-  } finally {
-    await client.query("rollback");
-  }
+  return inRole(client, "authenticated", work, {
+    sub: user.id,
+    role: "authenticated",
+    email: user.email,
+  });
 }
 
-export interface AuthenticatedContext {
+/**
+ * Runs `work` as `anon` — the role Supabase uses for a request carrying no
+ * session, which is every visitor to a public page. No JWT claims are set, so
+ * `auth.uid()` is null, exactly as it is in production.
+ *
+ * Rolled back like `asUser`, so a suite can watch a row land and still leave
+ * the database as it found it.
+ */
+export async function asAnon<T>(
+  client: Client,
+  work: (ctx: RoleContext) => Promise<T>,
+): Promise<T> {
+  return inRole(client, "anon", work, null);
+}
+
+export interface RoleContext {
+  /** Runs as the downgraded role, which is what is under test. */
   query: <T extends QueryResultRow = QueryResultRow>(
     sql: string,
     params?: unknown[],
   ) => Promise<QueryResult<T>>;
+  /**
+   * Runs as the harness's own connection, still inside the transaction that
+   * will be rolled back.
+   *
+   * Needed to check what a write actually stored: the role under test usually
+   * cannot read the row it just created — for the early-access queue, that is
+   * the whole point — and reading it on a second connection would not see an
+   * uncommitted row at all.
+   */
+  inspect: <T extends QueryResultRow = QueryResultRow>(
+    sql: string,
+    params?: unknown[],
+  ) => Promise<QueryResult<T>>;
+}
+
+export interface AuthenticatedContext extends RoleContext {
   userId: string;
+}
+
+async function inRole<T>(
+  client: Client,
+  role: "anon" | "authenticated",
+  work: (ctx: AuthenticatedContext) => Promise<T>,
+  claims: Record<string, unknown> | null,
+): Promise<T> {
+  const enter = async () => {
+    await client.query("select set_config('request.jwt.claims', $1, true)", [
+      claims ? JSON.stringify(claims) : "",
+    ]);
+    await client.query(`set local role ${role}`);
+  };
+
+  await client.query("begin");
+  try {
+    await enter();
+    return await work({
+      query: (sql, params) => client.query(sql, params),
+      inspect: async (sql, params) => {
+        await client.query("reset role");
+        try {
+          return await client.query(sql, params);
+        } finally {
+          await enter();
+        }
+      },
+      userId: typeof claims?.sub === "string" ? claims.sub : "",
+    });
+  } finally {
+    await client.query("rollback");
+  }
 }
 
 /**

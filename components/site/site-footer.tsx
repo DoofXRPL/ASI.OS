@@ -2,17 +2,17 @@ import { Wordmark } from "@/components/brand/northstar";
 import { REPO_URL } from "@/lib/site/landing";
 
 /**
- * The footer links only to things that exist: sections of this page and the
- * written reasoning in the public repository. No careers page, no status page,
- * no social row for accounts nobody holds.
+ * The footer links only to things that exist: sections of the front page and
+ * the written reasoning in the public repository. No careers page, no status
+ * page, no social row for accounts nobody holds.
  */
 const PRODUCT_LINKS = [
-  { label: "Product", href: "#product" },
-  { label: "Architecture", href: "#architecture" },
-  { label: "Obsidian Brain", href: "#memory" },
-  { label: "Agents", href: "#agents" },
-  { label: "Security", href: "#security" },
-  { label: "Roadmap", href: "#roadmap" },
+  { label: "Product", hash: "#product" },
+  { label: "Architecture", hash: "#architecture" },
+  { label: "Obsidian Brain", hash: "#memory" },
+  { label: "Agents", hash: "#agents" },
+  { label: "Security", hash: "#security" },
+  { label: "Roadmap", hash: "#roadmap" },
 ] as const;
 
 const REASONING_LINKS = [
@@ -23,7 +23,14 @@ const REASONING_LINKS = [
   { label: "Repository", href: REPO_URL },
 ] as const;
 
-export function SiteFooter() {
+/**
+ * `onHome` decides whether the section links are in-page anchors or routed
+ * back to the front page, for the same reason the header takes it: a bare
+ * `#product` on any other route scrolls to nothing.
+ */
+export function SiteFooter({ onHome = true }: { onHome?: boolean }) {
+  const base = onHome ? "" : "/";
+
   return (
     <footer className="bg-canvas">
       <div className="mx-auto w-full max-w-6xl px-5 py-12 md:px-8">
@@ -40,9 +47,9 @@ export function SiteFooter() {
             <p className="font-mono text-[11px] tracking-[0.18em] text-mist uppercase">Product</p>
             <ul className="mt-3 space-y-2">
               {PRODUCT_LINKS.map((link) => (
-                <li key={link.href}>
+                <li key={link.hash}>
                   <a
-                    href={link.href}
+                    href={`${base}${link.hash}`}
                     className="text-[13px] text-graphite transition-colors duration-[var(--duration-hover)] ease-[var(--ease-out)] hover:text-carbon"
                   >
                     {link.label}

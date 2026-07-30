@@ -151,6 +151,20 @@ describe("account provisioning", () => {
 });
 
 describe("schema-wide guarantees", () => {
+  it("defines exactly the schemas this project knows about", async () => {
+    // Everything below asserts something about `public`. That is only a
+    // guarantee about the database if `public` is where the tables are, so the
+    // set of schemas is pinned too: a table hidden in an unlisted schema would
+    // otherwise inherit none of these rules and fail none of these tests.
+    const { rows } = await admin.query<{ nspname: string }>(
+      `select nspname from pg_namespace
+       where nspname not like 'pg\\_%' and nspname <> 'information_schema'
+       order by nspname`,
+    );
+
+    expect(rows.map((r) => r.nspname)).toEqual(["access", "auth", "public"]);
+  });
+
   it("enables row level security on every table in the public schema", async () => {
     const { rows } = await admin.query<{ tablename: string; enabled: boolean }>(
       `select c.relname as tablename, c.relrowsecurity as enabled

@@ -17,6 +17,10 @@ major_version = 16
 [api]
 enabled = true
 port = 54321
+# `access` is missing from this list on purpose, and must stay missing. The
+# early-access queue lives there precisely so PostgREST cannot reach it; adding
+# it here would expose the table that public.request_early_access() exists to
+# avoid exposing. See supabase/migrations/0003_early_access.sql.
 schemas = ["public"]
 extra_search_path = ["public", "extensions"]
 max_rows = 1000

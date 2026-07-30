@@ -59,6 +59,23 @@ type _OwnershipIsNotWritable = AssertTrue<
   >
 >;
 
+/**
+ * The early-access queue is not a table the client can name.
+ *
+ * It lives in the `access` schema, which PostgREST does not expose, so the
+ * only way to it is `public.request_early_access()`. Typing it here would
+ * invite `.from("early_access_requests")`, which compiles and then fails at
+ * runtime — the worst of both. See supabase/migrations/0003_early_access.sql.
+ */
+type _QueueIsNotAddressable = AssertTrue<
+  Extends<
+    "early_access_requests" extends keyof Database["public"]["Tables"]
+      ? false
+      : true,
+    true
+  >
+>;
+
 describe("database types", () => {
   it("holds its compile-time guarantees", () => {
     // The assertions above are enforced by tsc. This keeps the suite honest

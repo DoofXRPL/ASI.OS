@@ -1,4 +1,4 @@
-import { HERO, STATUS_PANEL } from "@/lib/site/landing";
+import { ACCESS, HERO, STATUS_PANEL } from "@/lib/site/landing";
 import { CtaLink } from "./cta-link";
 import { Reveal } from "./motion/reveal";
 import { StatusTag } from "./status-tag";
@@ -45,7 +45,7 @@ export function Hero({ signedIn }: { signedIn: boolean }) {
           <Reveal index={4}>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <CtaLink href="#product">Explore the system</CtaLink>
-              <CtaLink variant="secondary" href={signedIn ? "/today" : "/login"}>
+              <CtaLink variant="secondary" href={signedIn ? "/today" : ACCESS.href}>
                 {signedIn ? "Open ASI.OS" : "Request access"}
               </CtaLink>
             </div>
