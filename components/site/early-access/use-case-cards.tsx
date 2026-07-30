@@ -70,6 +70,9 @@ export function UseCaseCards({
               // Focus lands on the visually hidden radio, so the card wears it.
               "has-[:focus-visible]:outline has-[:focus-visible]:outline-2",
               "has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent-ink",
+              // The radio disables while the form is submitting; the card is
+              // its clickable surface, so it has to stop looking like one too.
+              "has-[:disabled]:pointer-events-none has-[:disabled]:opacity-60",
               isSelected
                 ? "border-carbon bg-carbon/[0.035] shadow-lift"
                 : "border-edge bg-panel hover:-translate-y-px hover:border-edge-strong hover:shadow-lift",

@@ -124,145 +124,153 @@ export function EarlyAccessForm() {
               </FormNotice>
             ) : null}
 
-            <div className="space-y-6">
-              <SiteField id={ids.name} label={EARLY_ACCESS.labels.name} error={errorFor("name")}>
-                <SiteInput
-                  {...form.register("name")}
-                  {...describedBy(ids.name, { error: errorFor("name") })}
-                  id={ids.name}
-                  autoComplete="name"
-                  placeholder="Ada Lovelace"
-                  enterKeyHint="next"
-                />
-              </SiteField>
+            {/*
+             * One attribute disables every control for the duration of the
+             * round trip, radios included. Editing a field after the copy of
+             * the form being sent was taken would change nothing, and a form
+             * that still responds while claiming to be busy reads as broken.
+             */}
+            <fieldset disabled={pending} className="min-w-0 space-y-10">
+              <div className="space-y-6">
+                <SiteField id={ids.name} label={EARLY_ACCESS.labels.name} error={errorFor("name")}>
+                  <SiteInput
+                    {...form.register("name")}
+                    {...describedBy(ids.name, { error: errorFor("name") })}
+                    id={ids.name}
+                    autoComplete="name"
+                    placeholder="Ada Lovelace"
+                    enterKeyHint="next"
+                  />
+                </SiteField>
 
-              <SiteField id={ids.email} label={EARLY_ACCESS.labels.email} error={errorFor("email")}>
-                <SiteInput
-                  {...form.register("email")}
-                  {...describedBy(ids.email, { error: errorFor("email") })}
-                  id={ids.email}
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  enterKeyHint="next"
-                />
-              </SiteField>
-
-              <SiteField
-                id={ids.company}
-                label={EARLY_ACCESS.labels.company}
-                hint={EARLY_ACCESS.labels.companyHint}
-                error={errorFor("company")}
-              >
-                <SiteInput
-                  {...form.register("company")}
-                  {...describedBy(ids.company, { hint: true, error: errorFor("company") })}
-                  id={ids.company}
-                  autoComplete="organization"
-                  placeholder="Where you work, if it matters here"
-                />
-              </SiteField>
-            </div>
-
-            <FormSection
-              id={ids.useCase}
-              title={EARLY_ACCESS.sections.useCase.title}
-              description={EARLY_ACCESS.sections.useCase.description}
-            >
-              <ChoiceGroup
-                legend={EARLY_ACCESS.sections.useCase.title}
-                error={errorFor("useCase")}
-                errorId={`${ids.useCase}-error`}
-              >
-                <UseCaseCards selected={useCase} registration={form.register("useCase")} />
-              </ChoiceGroup>
-
-              <AnimatePresence initial={false}>
-                {useCase === "other" ? (
-                  <motion.div
-                    key="other"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: reduceMotion ? 0 : 0.24, ease: EASE }}
-                    className="overflow-hidden"
-                  >
-                    <div className="pt-5">
-                      <SiteField
-                        id={ids.otherUseCase}
-                        label={EARLY_ACCESS.labels.otherUseCase}
-                        error={errorFor("otherUseCase")}
-                      >
-                        <SiteTextarea
-                          {...form.register("otherUseCase")}
-                          {...describedBy(ids.otherUseCase, {
-                            error: errorFor("otherUseCase"),
-                          })}
-                          id={ids.otherUseCase}
-                          rows={3}
-                        />
-                      </SiteField>
-                    </div>
-                  </motion.div>
-                ) : null}
-              </AnimatePresence>
-            </FormSection>
-
-            <FormSection
-              id={ids.context}
-              title={EARLY_ACCESS.sections.context.title}
-              description={EARLY_ACCESS.sections.context.description}
-            >
-              <div className="space-y-8">
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-carbon">
-                    {EARLY_ACCESS.labels.teamSize}
-                  </p>
-                  <ChoiceGroup
-                    legend={EARLY_ACCESS.labels.teamSize}
-                    error={errorFor("teamSize")}
-                    errorId={`${ids.teamSize}-error`}
-                  >
-                    <TeamSizeChoice
-                      selected={teamSize}
-                      registration={form.register("teamSize")}
-                    />
-                  </ChoiceGroup>
-                </div>
+                <SiteField id={ids.email} label={EARLY_ACCESS.labels.email} error={errorFor("email")}>
+                  <SiteInput
+                    {...form.register("email")}
+                    {...describedBy(ids.email, { error: errorFor("email") })}
+                    id={ids.email}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    enterKeyHint="next"
+                  />
+                </SiteField>
 
                 <SiteField
-                  id={ids.challenge}
-                  label={EARLY_ACCESS.labels.challenge}
-                  error={errorFor("challenge")}
+                  id={ids.company}
+                  label={EARLY_ACCESS.labels.company}
+                  hint={EARLY_ACCESS.labels.companyHint}
+                  error={errorFor("company")}
                 >
-                  <SiteTextarea
-                    {...form.register("challenge")}
-                    {...describedBy(ids.challenge, { error: errorFor("challenge") })}
-                    id={ids.challenge}
-                    rows={4}
-                    placeholder={EARLY_ACCESS.labels.challengePlaceholder}
+                  <SiteInput
+                    {...form.register("company")}
+                    {...describedBy(ids.company, { hint: true, error: errorFor("company") })}
+                    id={ids.company}
+                    autoComplete="organization"
+                    placeholder="Where you work, if it matters here"
                   />
                 </SiteField>
               </div>
-            </FormSection>
 
-            {/*
-             * Hidden from everyone who is not a script: off-screen rather than
-             * `display: none`, which some bots skip, and out of both the tab
-             * order and the accessibility tree so no person can reach it.
-             */}
-            <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
-              <label htmlFor={ids.honeypot}>Leave this field empty</label>
-              <input
-                id={ids.honeypot}
-                name={HONEYPOT_FIELD}
-                type="text"
-                tabIndex={-1}
-                autoComplete="off"
-                defaultValue=""
-              />
-            </div>
+              <FormSection
+                id={ids.useCase}
+                title={EARLY_ACCESS.sections.useCase.title}
+                description={EARLY_ACCESS.sections.useCase.description}
+              >
+                <ChoiceGroup
+                  legend={EARLY_ACCESS.sections.useCase.title}
+                  error={errorFor("useCase")}
+                  errorId={`${ids.useCase}-error`}
+                >
+                  <UseCaseCards selected={useCase} registration={form.register("useCase")} />
+                </ChoiceGroup>
+
+                <AnimatePresence initial={false}>
+                  {useCase === "other" ? (
+                    <motion.div
+                      key="other"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: reduceMotion ? 0 : 0.24, ease: EASE }}
+                      className="overflow-hidden"
+                    >
+                      <div className="pt-5">
+                        <SiteField
+                          id={ids.otherUseCase}
+                          label={EARLY_ACCESS.labels.otherUseCase}
+                          error={errorFor("otherUseCase")}
+                        >
+                          <SiteTextarea
+                            {...form.register("otherUseCase")}
+                            {...describedBy(ids.otherUseCase, {
+                              error: errorFor("otherUseCase"),
+                            })}
+                            id={ids.otherUseCase}
+                            rows={3}
+                          />
+                        </SiteField>
+                      </div>
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+              </FormSection>
+
+              <FormSection
+                id={ids.context}
+                title={EARLY_ACCESS.sections.context.title}
+                description={EARLY_ACCESS.sections.context.description}
+              >
+                <div className="space-y-8">
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-carbon">
+                      {EARLY_ACCESS.labels.teamSize}
+                    </p>
+                    <ChoiceGroup
+                      legend={EARLY_ACCESS.labels.teamSize}
+                      error={errorFor("teamSize")}
+                      errorId={`${ids.teamSize}-error`}
+                    >
+                      <TeamSizeChoice
+                        selected={teamSize}
+                        registration={form.register("teamSize")}
+                      />
+                    </ChoiceGroup>
+                  </div>
+
+                  <SiteField
+                    id={ids.challenge}
+                    label={EARLY_ACCESS.labels.challenge}
+                    error={errorFor("challenge")}
+                  >
+                    <SiteTextarea
+                      {...form.register("challenge")}
+                      {...describedBy(ids.challenge, { error: errorFor("challenge") })}
+                      id={ids.challenge}
+                      rows={4}
+                      placeholder={EARLY_ACCESS.labels.challengePlaceholder}
+                    />
+                  </SiteField>
+                </div>
+              </FormSection>
+
+              {/*
+               * Hidden from everyone who is not a script: off-screen rather
+               * than `display: none`, which some bots skip, and out of both the
+               * tab order and the accessibility tree so no person can reach it.
+               */}
+              <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
+                <label htmlFor={ids.honeypot}>Leave this field empty</label>
+                <input
+                  id={ids.honeypot}
+                  name={HONEYPOT_FIELD}
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  defaultValue=""
+                />
+              </div>
+            </fieldset>
 
             <SubmitButton pending={pending} reduceMotion={reduceMotion} />
 

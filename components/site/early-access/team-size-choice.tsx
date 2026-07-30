@@ -31,6 +31,8 @@ export function TeamSizeChoice({
               "transition-[border-color,background-color,color] duration-[var(--duration-hover)] ease-[var(--ease-out)]",
               "has-[:focus-visible]:outline has-[:focus-visible]:outline-2",
               "has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent-ink",
+              // Mirrors the disabled state of the sr-only radio inside.
+              "has-[:disabled]:pointer-events-none has-[:disabled]:opacity-60",
               isSelected
                 ? "border-carbon bg-carbon/[0.035] font-medium text-carbon"
                 : "border-edge bg-panel text-graphite hover:border-edge-strong hover:text-carbon",

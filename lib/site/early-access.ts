@@ -16,7 +16,7 @@ export const EARLY_ACCESS = {
   headline: "Request early access",
   lead: "ASI.OS is currently in active development.",
   support:
-    "Tell us how you plan to use it so we can prioritize the right builders during early access.",
+    "Tell us how you plan to use it so we can prioritize builders who will shape the platform.",
   /** Stated before the first field, so nobody types an answer under a wrong assumption. */
   note: "Access is by invitation while the foundation is being built. There is no public sign-up, and no date to promise you yet.",
 
@@ -54,7 +54,7 @@ export const EARLY_ACCESS = {
     body: "Thanks for your interest. We’ll review your request and reach out as ASI.OS evolves.",
     /** True because it is what the database did — nothing more is claimed. */
     receipt: "Your request has been recorded.",
-    action: "Return home",
+    action: "Return to home",
   },
 
   /** Shown beneath the form, where a reader is deciding whether this is worth their time. */

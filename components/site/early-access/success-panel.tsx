@@ -54,10 +54,16 @@ export function SuccessPanel() {
     >
       <Checkmark reduceMotion={reduceMotion ?? false} />
 
+      {/*
+       * The heading is focused so the outcome is announced, but it is not a
+       * control, and a focus ring here reads as a glitch. `outline-none` alone
+       * loses to the global `.site-light :focus-visible` rule on specificity,
+       * hence the important marker.
+       */}
       <h2
         ref={headingRef}
         tabIndex={-1}
-        className="mt-7 text-2xl font-semibold tracking-[-0.02em] text-carbon outline-none md:text-[1.75rem]"
+        className="mt-7 text-2xl font-semibold tracking-[-0.02em] text-carbon outline-none! md:text-[1.75rem]"
       >
         {EARLY_ACCESS.success.headline}
       </h2>
