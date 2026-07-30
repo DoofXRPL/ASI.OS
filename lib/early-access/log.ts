@@ -10,8 +10,9 @@
  * So the record is a closed shape rather than a free object. There is no field
  * for a name, an address, an email or a message, which means none can be added
  * by accident at a call site — adding one would mean editing this file, where
- * the reason not to is written down. `tests/unit/intake-log.test.ts` holds the
- * shape to that promise.
+ * the reason not to is written down. `tests/unit/intake-guard.test.ts` holds the
+ * shape to that promise, and `tests/unit/early-access-action.test.ts` submits a
+ * full form and asserts none of it reaches a line.
  *
  * It goes to stdout as one JSON object per line, because that is what the
  * platform already collects. A log store is not infrastructure this product has
@@ -49,7 +50,12 @@ export interface IntakeEvent {
   event: "early_access.intake";
   /** ISO 8601, UTC. */
   at: string;
-  /** One submission, one id, so the layers that touched it can be lined up. */
+  /**
+   * One id per submission, so a line can be quoted without quoting anything
+   * about who sent it. It does not join the layers together and is not claimed
+   * to: the edge refuses before any id has been minted, so a refusal there and a
+   * submission that got past it are never the same request.
+   */
   correlationId: string;
   outcome: IntakeOutcome;
   /**

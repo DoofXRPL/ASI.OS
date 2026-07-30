@@ -185,9 +185,10 @@ one table, the table sits outside `public` entirely. See
 [ADR 0008](DECISIONS/0008-the-front-door-is-its-own-schema.md).
 
 Three more tables joined it to lock and meter the door — `intake_keys`,
-`intake_limits` and `intake_attempts` — because a function `anon` may execute is a
+`intake_limits` and `intake_counters` — because a function `anon` may execute is a
 function anybody holding the publishable key may execute. See
-[ADR 0009](DECISIONS/0009-the-front-door-is-gated-and-metered.md) and
+[ADR 0009](DECISIONS/0009-the-front-door-is-gated-and-metered.md),
+[ADR 0010](DECISIONS/0010-the-meter-counts-atomically.md) and
 [SECURITY.md](SECURITY.md).
 
 ### `access.early_access_requests`
@@ -212,7 +213,7 @@ function anybody holding the publishable key may execute. See
 - **One way in, and it is locked.** `public.request_early_access()` is `SECURITY
   DEFINER`, pins `search_path`, and requires a `p_key` whose SHA-256 matches an
   unretired row in `access.intake_keys`. It returns an outcome —
-  `accepted`, `throttled`, `refused` or `unconfigured` — and answers a duplicate
+  `accepted`, `throttled`, `refused`, `unconfigured` or `failed` — and answers a duplicate
   address `accepted` exactly as it answers a new one, so it still cannot report
   whether the insert happened and the form is still not an oracle for "is this
   address already on the list". A duplicate is absorbed by `on conflict do
@@ -254,7 +255,7 @@ function anybody holding the publishable key may execute. See
 | `per_client_window` | interval | not null, default 15 minutes, 1 minute–7 days |
 | `global_max` | integer | not null, default 200, 1–100000 |
 | `global_window` | interval | not null, default 1 hour, 1 minute–7 days |
-| `retain_attempts` | interval | not null, default 24 hours, 1 hour–30 days |
+| `retain_counters` | interval | not null, default 24 hours, 1 hour–30 days |
 
 - **Thresholds as data,** so retuning the door is an `UPDATE` rather than a
   deployment — which matters when the reason to retune it is happening now.
@@ -262,25 +263,45 @@ function anybody holding the publishable key may execute. See
   take the form offline by accident, and one configurable to a million is not a
   limiter.
 
-### `access.intake_attempts`
+### `access.intake_counters`
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `id` | uuid | primary key |
-| `client_hash` | text | not null, `check (client_hash ~ '^[0-9a-f]{32}$')` |
-| `outcome` | text | not null — `accepted` or `throttled` |
-| `created_at` | timestamptz | not null |
+| `bucket` | text | not null, `check (bucket = 'deployment' or bucket ~ '^[0-9a-f]{32}$')` |
+| `window_start` | timestamptz | not null — from `access.intake_window()` |
+| `admitted` | integer | not null, default 0 — calls allowed in this window |
+| `refused` | integer | not null, default 0 — calls refused, and read by nothing |
 
-- **No address, enforced by the column.** `client_hash` is an HMAC of the caller's
-  address and the current UTC date, keyed with the intake key and truncated to 32
-  hexadecimal characters. The constraint is what makes "we do not store IP
-  addresses" a guarantee rather than a convention in the calling code.
+Primary key `(bucket, window_start)`. Replaced `access.intake_attempts`, which
+recorded one row per call: see
+[ADR 0010](DECISIONS/0010-the-meter-counts-atomically.md).
+
+- **No address, enforced by the column.** `bucket` is an HMAC of the caller's
+  *network* and the current UTC date, keyed with the intake key and truncated to
+  32 hexadecimal characters, or the literal `deployment` for the whole-deployment
+  ceiling. The constraint is what makes "we do not store IP addresses" a
+  guarantee rather than a convention in the calling code.
+- **A network, not an address.** An IPv6 /64 is one subscriber and hashes to one
+  bucket, because otherwise its eighteen quintillion addresses were eighteen
+  quintillion budgets. IPv4 is not truncated — see `lib/early-access/client-id.ts`
+  for why a /24 would refuse strangers for each other's traffic.
 - **Different tomorrow.** The date in the input means a retained row identifies a
   bucket rather than a person, and cannot be joined to the next day's rows.
-- **A counter, not a log.** Rows older than `retain_attempts` are deleted by the
-  function on its way through.
-- **Refusals count too.** A caller who keeps knocking after being told to stop
-  extends their own window, which is the one case where that is the right answer.
+- **The increment is the decision.** `admitted` is raised by an `on conflict do
+  update … where admitted < <limit>`, so the threshold is the increment's own
+  condition and concurrent callers cannot each read the same number and all pass.
+  A refused call therefore increments nothing.
+- **Refusals are recorded and consulted by nothing.** `refused` exists so a
+  sustained refusal rate is visible. Counting it towards the window it was refused
+  by is what turned the deployment-wide ceiling into a lockout anybody could hold
+  shut by knocking.
+- **Fixed windows, not sliding.** `window_start` makes a window a row, so a new
+  one starts at nothing. The price is that a caller who times a boundary can send
+  their budget twice; the gain is a limit that is exact under concurrency and
+  costs a primary-key lookup to read.
+- **A counter, not a log.** Rows for windows older than `retain_counters` are
+  removed in bounded batches by the function on its way through, taking only rows
+  no concurrent caller has claimed.
 
 ## Coming in later phases
 
