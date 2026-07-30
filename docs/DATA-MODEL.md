@@ -184,6 +184,12 @@ to key a policy to and no `user_id` to require. Rather than weaken the rule for
 one table, the table sits outside `public` entirely. See
 [ADR 0008](DECISIONS/0008-the-front-door-is-its-own-schema.md).
 
+Three more tables joined it to lock and meter the door — `intake_keys`,
+`intake_limits` and `intake_attempts` — because a function `anon` may execute is a
+function anybody holding the publishable key may execute. See
+[ADR 0009](DECISIONS/0009-the-front-door-is-gated-and-metered.md) and
+[SECURITY.md](SECURITY.md).
+
 ### `access.early_access_requests`
 
 | Column | Type | Notes |
@@ -203,11 +209,14 @@ one table, the table sits outside `public` entirely. See
   schemas in `supabase/config.toml`, so PostgREST cannot address the table;
   `anon` and `authenticated` hold no privilege on it and no `USAGE` on the
   schema; and RLS is enabled with no policies as a third layer.
-- **One way in.** `public.request_early_access()` is `SECURITY DEFINER`, pins
-  `search_path`, and **returns void**. It cannot report the new id or whether
-  the insert happened, so the form is not an oracle for "is this address
-  already on the list". A duplicate is absorbed by `on conflict do nothing`
-  against a unique index on `lower(email)`.
+- **One way in, and it is locked.** `public.request_early_access()` is `SECURITY
+  DEFINER`, pins `search_path`, and requires a `p_key` whose SHA-256 matches an
+  unretired row in `access.intake_keys`. It returns an outcome —
+  `accepted`, `throttled`, `refused` or `unconfigured` — and answers a duplicate
+  address `accepted` exactly as it answers a new one, so it still cannot report
+  whether the insert happened and the form is still not an oracle for "is this
+  address already on the list". A duplicate is absorbed by `on conflict do
+  nothing` against a unique index on `lower(email)`.
 - **An explanation only survives with the category it describes.**
   `check ((use_case = 'other') = (other_use_case is not null))` enforces both
   halves, on the same reasoning as `projects.blocked_reason`.
@@ -217,6 +226,61 @@ one table, the table sits outside `public` entirely. See
 - The same closed sets live in `lib/schemas/early-access.ts`, and
   `tests/unit/early-access-schema.test.ts` reads this migration to prove the
   two have not drifted apart.
+
+### `access.intake_keys`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | primary key |
+| `label` | text | not null, 1–60 characters — which deployment or rotation |
+| `key_sha256` | bytea | not null, unique, exactly 32 bytes |
+| `created_at` | timestamptz | not null |
+| `retired_at` | timestamptz | nullable — set to withdraw a key, never deleted |
+
+- **Digests only.** The key itself exists as `ASI_INTAKE_KEY` in a deployment's
+  environment and nowhere else, so the database holds nothing that could be
+  replayed against it.
+- **Several unretired rows are allowed,** which is what makes rotation a deploy
+  rather than an outage.
+- **Empty means closed.** No registered key means every request is refused with
+  `unconfigured`, which is the correct state for a deployment nobody configured.
+
+### `access.intake_limits`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | boolean | primary key, `check (id)` — one row, always |
+| `per_client_max` | integer | not null, default 5, 1–1000 |
+| `per_client_window` | interval | not null, default 15 minutes, 1 minute–7 days |
+| `global_max` | integer | not null, default 200, 1–100000 |
+| `global_window` | interval | not null, default 1 hour, 1 minute–7 days |
+| `retain_attempts` | interval | not null, default 24 hours, 1 hour–30 days |
+
+- **Thresholds as data,** so retuning the door is an `UPDATE` rather than a
+  deployment — which matters when the reason to retune it is happening now.
+- **Every column bounded,** because a limiter configurable to zero is a way to
+  take the form offline by accident, and one configurable to a million is not a
+  limiter.
+
+### `access.intake_attempts`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | primary key |
+| `client_hash` | text | not null, `check (client_hash ~ '^[0-9a-f]{32}$')` |
+| `outcome` | text | not null — `accepted` or `throttled` |
+| `created_at` | timestamptz | not null |
+
+- **No address, enforced by the column.** `client_hash` is an HMAC of the caller's
+  address and the current UTC date, keyed with the intake key and truncated to 32
+  hexadecimal characters. The constraint is what makes "we do not store IP
+  addresses" a guarantee rather than a convention in the calling code.
+- **Different tomorrow.** The date in the input means a retained row identifies a
+  bucket rather than a person, and cannot be joined to the next day's rows.
+- **A counter, not a log.** Rows older than `retain_attempts` are deleted by the
+  function on its way through.
+- **Refusals count too.** A caller who keeps knocking after being told to stop
+  extends their own window, which is the one case where that is the right answer.
 
 ## Coming in later phases
 

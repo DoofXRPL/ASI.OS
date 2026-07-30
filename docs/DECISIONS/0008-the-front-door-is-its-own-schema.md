@@ -3,6 +3,8 @@
 - **Status:** Accepted
 - **Date:** 2026-07-30
 - **Amends:** [0007](0007-the-front-page-is-a-product-document.md) §6
+- **Amended by:** [0009](0009-the-front-door-is-gated-and-metered.md) — §3 and the
+  consequence about abuse below are no longer accurate on their own
 
 ## Context
 
@@ -94,6 +96,12 @@ the table:
   ([Principle 10](../PRINCIPLES.md)). If the queue is ever flooded, that is the
   evidence, and the platform's own rate limiting is the first thing to reach
   for.
+
+  *Superseded by [ADR 0009](0009-the-front-door-is-gated-and-metered.md). The
+  reasoning held; the mistake was assuming a limiter needs a new store. It needs
+  five integers, and PostgreSQL was already here. The more serious gap was that
+  granting `EXECUTE` to `anon` made every application-side check optional for an
+  attacker, which no amount of deterrence addresses.*
 - ADR 0007 §6 no longer describes the product. Its reasoning still holds — a
   form that submits nowhere must not ship — and the change is that it now
   submits somewhere.

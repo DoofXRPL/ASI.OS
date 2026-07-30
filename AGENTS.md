@@ -35,8 +35,9 @@ form). They share `SiteHeader`, `SiteFooter` and the light palette; both pass
 
 Shipped in Phase 1 so far: capture with the original text preserved by
 privilege; four ways out of the inbox; projects with an outcome, a status, a
-next action and a required reason when blocked; and a Today derived from those
-rows. Still to come in Phase 1: `tasks` and `notes`
+next action and a required reason when blocked; a Today derived from those
+rows; and a public early-access form whose write is gated by a key the database
+verifies and metered by counters it keeps. Still to come in Phase 1: `tasks` and `notes`
 ([ADR 0003](docs/DECISIONS/0003-projects-hold-the-next-action.md) explains why
 they are not here yet), `people`, and export/delete in Settings.
 
@@ -50,6 +51,7 @@ they are not here yet), `people`, and export/delete in Settings.
 | `npm run test` | Unit tests only — no I/O, always runnable |
 | `npm run test:rls` | RLS tests — needs `TEST_DATABASE_URL` |
 | `npm run guard:service-role` | Fails if app code can bypass RLS |
+| `npm run intake:key` | Prints an early-access intake key and the SQL to register it |
 | `npm run build` | Production build |
 | `npm run verify` | Everything CI runs, in CI's order |
 
@@ -60,6 +62,11 @@ CI runs: typecheck → lint → guard → unit → RLS → build.
 Copy `.env.example` to `.env.local`. Only two variables are required:
 `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the older
 `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
+
+`ASI_INTAKE_KEY` is required for the early-access form to record anything. Without
+it the form says requests are not being recorded, which is true: the database
+refuses a caller it does not recognise. `npm run intake:key` prints the variable
+and the SQL that registers its digest. See [docs/SECURITY.md](docs/SECURITY.md).
 
 Without them the app still builds and runs, every private route redirects to
 `/login`, and `/login` names the missing variables. That is the intended
@@ -127,8 +134,19 @@ Use a tmux session for long-running servers in Cloud Agent VMs.
     database look like an empty account, which is the more damaging of the two
     to get wrong.
 12. **Derived output must name its evidence.** Anything Today asserts comes from
-    a pure function in `lib/derive/` and carries the id of a row it was given.
-    Never invent a deadline, a priority, a score, or the word "urgent".
+ a pure function in `lib/derive/` and carries the id of a row it was given.
+ Never invent a deadline, a priority, a score, or the word "urgent".
+13. **Anything `anon` may execute must be guarded in the database.** The
+ publishable key is public, so a check in a Server Action protects only the path a
+ visitor happens to take. `public.request_early_access()` requires an intake key
+ and meters every caller; a new anonymous entry point needs the same treatment and
+ the tests in `tests/rls/intake-guard.test.ts` as a model. See
+ [docs/SECURITY.md](docs/SECURITY.md) and
+ [ADR 0009](docs/DECISIONS/0009-the-front-door-is-gated-and-metered.md).
+14. **No raw IP address goes into any table.** The intake meter counts a keyed
+ digest of the address and the UTC date, and the column's CHECK constraint accepts
+ nothing else. Logs follow the same rule: `lib/early-access/log.ts` is a closed
+ shape with no field for a name, an address, an email or a message.
 
 ## Conventions
 

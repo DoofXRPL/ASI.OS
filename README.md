@@ -21,12 +21,16 @@ is still **no AI, no integrations, and no external calls**.
 
 What works today, with real data:
 
-- **Request early access** — the one public form. It writes through a
-  `SECURITY DEFINER` function to a table in its own schema, which PostgREST
-  cannot address and no API role holds a privilege on. The function returns
-  nothing, so the form cannot be used to discover whether an address is already
-  on the list. See
-  [ADR 0008](docs/DECISIONS/0008-the-front-door-is-its-own-schema.md).
+- **Request early access** — the one public form, and the one write a stranger
+  can perform. It goes through a `SECURITY DEFINER` function to a table in its own
+  schema, which PostgREST cannot address and no API role holds a privilege on.
+  That function requires a key only this deployment holds, so the published
+  publishable key is not enough to write to the queue, and it meters every caller
+  against limits counted in PostgreSQL. A duplicate address is answered exactly
+  like a new one, so the form cannot be used to discover who is already on the
+  list. See [ADR 0008](docs/DECISIONS/0008-the-front-door-is-its-own-schema.md),
+  [ADR 0009](docs/DECISIONS/0009-the-front-door-is-gated-and-metered.md) and
+  [docs/SECURITY.md](docs/SECURITY.md).
 - **Sign in** — email and password, invite-only (public sign-up is disabled at the
   Supabase project level, which is the real gate).
 - **Inbox** — capture a thought in one field with nothing to decide. The text is
@@ -108,6 +112,18 @@ Then, in the Supabase dashboard:
 3. Optionally set `ASI_OWNER_EMAIL` to require that the owner also signs in with
    that address — two independent checks rather than one.
 
+Then open the front door, which takes a key in two halves:
+
+```bash
+npm run intake:key           # prints the variable to set and the SQL to run
+```
+
+Set `ASI_INTAKE_KEY` in the environment and run the printed `insert` against the
+project it belongs to. Until both are done the early-access form reports that
+requests are not being recorded — which is true, because the database refuses a
+caller it does not recognise. Full reasoning and a launch checklist are in
+[docs/SECURITY.md](docs/SECURITY.md).
+
 ```bash
 npm run dev                  # http://localhost:3000
 ```
@@ -128,6 +144,7 @@ deployment exposes nothing.
 | `npm run test:rls` | Row Level Security tests (needs `TEST_DATABASE_URL`) |
 | `npm run guard:service-role` | Fail if application code can bypass RLS |
 | `npm run db:reset` | Rebuild the test database from migrations |
+| `npm run intake:key` | Generate an early-access intake key and the SQL to register it |
 | `npm run verify` | Everything CI runs |
 
 ## Stack
@@ -143,6 +160,8 @@ be added in the phase that needs it, with the evidence that it is needed.
 - [docs/PRINCIPLES.md](docs/PRINCIPLES.md) — the review criteria
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the pieces fit together
 - [docs/DATA-MODEL.md](docs/DATA-MODEL.md) — tables, policies and why
+- [docs/SECURITY.md](docs/SECURITY.md) — the anonymous intake path: threat model,
+  layers, failure modes and launch checklist
 - [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) — the approved plan
 - [docs/DECISIONS/](docs/DECISIONS/) — architecture decision records
 
