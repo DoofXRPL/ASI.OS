@@ -10,6 +10,7 @@ import { PreviewSection } from "@/components/site/preview-section";
 import { ProblemSection } from "@/components/site/problem-section";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
+import { SiteSkipLink } from "@/components/site/skip-link";
 import { StatusRoadmapSection } from "@/components/site/status-roadmap-section";
 import { TrustSection } from "@/components/site/trust-section";
 import { getAuthedUser } from "@/lib/auth/session";
@@ -63,6 +64,7 @@ export default async function RootPage() {
       </noscript>
 
       <div id="top" className="site-light flex min-h-dvh flex-col bg-canvas text-carbon [color-scheme:light]">
+        <SiteSkipLink />
         <SiteHeader signedIn={signedIn} />
 
         <main id="content" className="flex-1">

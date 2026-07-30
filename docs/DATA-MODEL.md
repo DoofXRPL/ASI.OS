@@ -1,7 +1,11 @@
 # ASI OS — Data model
 
-Five tables: three from Phase 0 that describe the system, and two from Phase 1
-that describe your work. The rules below apply to every table added later.
+Six tables. Five are in `public` and are user-owned: three from Phase 0 that
+describe the system, and two from Phase 1 that describe your work. The sixth is
+in its own schema and belongs to nobody — see
+[The `access` schema](#the-access-schema).
+
+The rules below apply to every table added to `public` later.
 
 ## Rules for every user-owned table
 
@@ -171,6 +175,48 @@ Captured input, preserved exactly as it was written.
   is exactly right for an unlinked capture.
 - **No DELETE privilege.** An unwanted capture is archived, which keeps the
   record of having thought it.
+
+## The `access` schema
+
+Everything above is one person's records. `access.early_access_requests` is the
+opposite: submissions from strangers who have no account, so there is no owner
+to key a policy to and no `user_id` to require. Rather than weaken the rule for
+one table, the table sits outside `public` entirely. See
+[ADR 0008](DECISIONS/0008-the-front-door-is-its-own-schema.md).
+
+### `access.early_access_requests`
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid | primary key |
+| `name` | text | not null, 1–120 characters, never blank |
+| `email` | text | not null, 3–254, lower-cased and trimmed on write |
+| `company` | text | nullable, ≤120 |
+| `use_case` | text | not null, one of eight known values |
+| `other_use_case` | text | nullable, ≤2000 — required iff `use_case = 'other'` |
+| `team_size` | text | nullable — `just_me`, `2_10`, `11_50`, `50_plus` |
+| `challenge` | text | nullable, ≤2000 |
+| `status` | text | not null, default `new`; `reviewing`, `invited`, `declined` |
+| `created_at` | timestamptz | not null |
+
+- **Unreachable, not merely protected.** `access` is absent from the exposed
+  schemas in `supabase/config.toml`, so PostgREST cannot address the table;
+  `anon` and `authenticated` hold no privilege on it and no `USAGE` on the
+  schema; and RLS is enabled with no policies as a third layer.
+- **One way in.** `public.request_early_access()` is `SECURITY DEFINER`, pins
+  `search_path`, and **returns void**. It cannot report the new id or whether
+  the insert happened, so the form is not an oracle for "is this address
+  already on the list". A duplicate is absorbed by `on conflict do nothing`
+  against a unique index on `lower(email)`.
+- **An explanation only survives with the category it describes.**
+  `check ((use_case = 'other') = (other_use_case is not null))` enforces both
+  halves, on the same reasoning as `projects.blocked_reason`.
+- **No read path exists.** Nothing renders these rows, so no query helper, RPC
+  or surface fetches them; the owner reviews the queue in the database.
+  `status` is that review, written by hand.
+- The same closed sets live in `lib/schemas/early-access.ts`, and
+  `tests/unit/early-access-schema.test.ts` reads this migration to prove the
+  two have not drifted apart.
 
 ## Coming in later phases
 

@@ -166,7 +166,29 @@ export type Database = {
     // `Record<string, never>` here would not satisfy PostgREST's schema
     // constraint and would silently degrade every query type to `never`.
     Views: { [_ in never]: never };
-    Functions: { [_ in never]: never };
+    Functions: {
+      /**
+       * The public page's only write path. The table it writes to lives in the
+       * `access` schema, which is not exposed to PostgREST, so it is absent
+       * from `Tables` above and unreachable from `.from()` — deliberately.
+       *
+       * `Returns: undefined` mirrors `returns void`: there is nothing to read
+       * back, so this cannot be used to learn whether an address is already
+       * recorded.
+       */
+      request_early_access: {
+        Args: {
+          p_name: string;
+          p_email: string;
+          p_use_case: string;
+          p_company?: string | null;
+          p_other_use_case?: string | null;
+          p_team_size?: string | null;
+          p_challenge?: string | null;
+        };
+        Returns: undefined;
+      };
+    };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
   };

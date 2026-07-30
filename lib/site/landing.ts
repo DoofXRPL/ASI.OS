@@ -447,5 +447,8 @@ export const REPO_URL = "https://github.com/DoofXRPL/ASI.OS";
 export const ACCESS = {
   headline: "Stop starting over.",
   body: "ASI.OS is being built for people who want continuity across their digital lives: tools that understand what came before, agents that share context, and a system that becomes more useful the longer it is used.",
-  note: "Access is by invitation while the foundation is being built. The repository is public — the code is the honest changelog.",
+  note: "Access is by invitation while the foundation is being built. Tell us what you would use it for and we will work through the requests in the order they help us most. The repository is public — the code is the honest changelog.",
+  /** Where the request form lives. Real since ADR 0008; before that, absent. */
+  href: "/early-access",
+  cta: "Request early access",
 } as const;

@@ -10,6 +10,7 @@ import {
   TRUST_ENFORCED,
   type Status,
 } from "@/lib/site/landing";
+import * as earlyAccess from "@/lib/site/early-access";
 import * as landing from "@/lib/site/landing";
 
 /**
@@ -134,27 +135,58 @@ describe("trust claims", () => {
 });
 
 describe("the language the product banned for itself", () => {
-  it("never appears anywhere in the page copy", () => {
-    const copy = JSON.stringify(landing).toLowerCase();
+  const banned = [
+    "revolutionary",
+    "game-changing",
+    "game changing",
+    "unlock",
+    "supercharge",
+    "world's most",
+    "the future is here",
+    "military",
+    "enterprise-grade",
+    "unbreakable",
+    "total privacy",
+    "cutting-edge",
+    "urgent",
+  ];
 
-    const banned = [
-      "revolutionary",
-      "game-changing",
-      "game changing",
-      "unlock",
-      "supercharge",
-      "world's most",
-      "the future is here",
-      "military",
-      "enterprise-grade",
-      "unbreakable",
-      "total privacy",
-      "cutting-edge",
-      "urgent",
-    ];
+  // Every public module of copy, scanned as one. A new page is a new entry
+  // here; a page that is not listed is a page the rule does not reach.
+  const surfaces = {
+    "the front page": landing,
+    "the early-access page": earlyAccess,
+  };
 
-    for (const phrase of banned) {
-      expect(copy, `banned phrase "${phrase}" found in landing copy`).not.toContain(phrase);
+  for (const [name, module] of Object.entries(surfaces)) {
+    it(`never appears anywhere in ${name}`, () => {
+      const copy = JSON.stringify(module).toLowerCase();
+
+      for (const phrase of banned) {
+        expect(copy, `banned phrase "${phrase}" found in ${name}`).not.toContain(phrase);
+      }
+    });
+  }
+});
+
+describe("the early-access page", () => {
+  it("promises a review and never a date", () => {
+    const copy = JSON.stringify(earlyAccess).toLowerCase();
+
+    // Nothing may imply a queue that is moving, a place in it, or a deadline.
+    for (const phrase of ["soon", "shortly", "within", "guarantee", "spots", "limited"]) {
+      expect(copy, `"${phrase}" promises more than the page can keep`).not.toContain(phrase);
     }
+  });
+
+  it("says outright that there is no date to promise", () => {
+    expect(earlyAccess.EARLY_ACCESS.note).toContain("no date to promise");
+  });
+
+  it("claims only what the database did", () => {
+    // "Recorded" is what `public.request_early_access()` guarantees. Anything
+    // stronger — reviewed, accepted, approved — would be the page describing a
+    // human decision that has not been made.
+    expect(earlyAccess.EARLY_ACCESS.success.receipt.toLowerCase()).toContain("recorded");
   });
 });

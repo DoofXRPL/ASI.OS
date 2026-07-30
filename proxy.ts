@@ -59,6 +59,13 @@ export const config = {
      * session with an expired access token would read as signed out here.
      */
     "/",
+    /*
+     * Public, and it writes: the early-access form posts a Server Action back
+     * to this route. It is listed for the same reason as `/` — the header asks
+     * whether the visitor is signed in, and without a refreshed session cookie
+     * a valid session with an expired access token would read as signed out.
+     */
+    "/early-access",
     "/today/:path*",
     "/inbox/:path*",
     "/projects/:path*",

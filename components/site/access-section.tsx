@@ -3,9 +3,12 @@ import { CtaLink } from "./cta-link";
 import { Reveal } from "./motion/reveal";
 
 /**
- * The close. Two real doors — the invitation-only sign-in and the public
- * repository — and no form, because a form that submits nowhere would be the
- * exact kind of control this product refuses to ship.
+ * The close. Two real doors: the request form, which writes to a real table
+ * through a real endpoint, and the public repository.
+ *
+ * Until `public.request_early_access()` existed this section deliberately had
+ * no form at all — a control that submits nowhere is the exact kind of thing
+ * this product refuses to ship. See ADR 0007, then ADR 0008.
  */
 export function AccessSection() {
   return (
@@ -22,7 +25,7 @@ export function AccessSection() {
           <p className="mt-4 text-sm/6 text-mist">{ACCESS.note}</p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <CtaLink href="/login">Request access</CtaLink>
+            <CtaLink href={ACCESS.href}>{ACCESS.cta}</CtaLink>
             <CtaLink variant="secondary" href={REPO_URL} target="_blank" rel="noreferrer">
               Follow development on GitHub
             </CtaLink>

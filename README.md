@@ -21,6 +21,12 @@ is still **no AI, no integrations, and no external calls**.
 
 What works today, with real data:
 
+- **Request early access** — the one public form. It writes through a
+  `SECURITY DEFINER` function to a table in its own schema, which PostgREST
+  cannot address and no API role holds a privilege on. The function returns
+  nothing, so the form cannot be used to discover whether an address is already
+  on the list. See
+  [ADR 0008](docs/DECISIONS/0008-the-front-door-is-its-own-schema.md).
 - **Sign in** — email and password, invite-only (public sign-up is disabled at the
   Supabase project level, which is the real gate).
 - **Inbox** — capture a thought in one field with nothing to decide. The text is
@@ -88,7 +94,10 @@ supabase db reset            # local stack
 supabase db push             # hosted project
 ```
 
-…or by running `supabase/migrations/0001_foundation.sql` in the SQL editor.
+…or by running each file in `supabase/migrations/` in the SQL editor, in order.
+
+Leave **Settings → API → Exposed schemas** as `public`. The early-access queue
+lives in `access` precisely so it cannot be reached over the API.
 
 Then, in the Supabase dashboard:
 

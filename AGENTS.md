@@ -29,6 +29,10 @@ Working surfaces: `/today`, `/inbox`, `/projects`, `/projects/[id]`, `/activity`
 added as empty shells — see
 [ADR 0002](docs/DECISIONS/0002-navigation-earns-its-place.md).
 
+Public surfaces: `/` (the product document) and `/early-access` (the request
+form). They share `SiteHeader`, `SiteFooter` and the light palette; both pass
+`onHome={false}` off the front page so section links resolve.
+
 Shipped in Phase 1 so far: capture with the original text preserved by
 privilege; four ways out of the inbox; projects with an outcome, a status, a
 next action and a required reason when blocked; and a Today derived from those
@@ -93,7 +97,12 @@ Use a tmux session for long-running servers in Cloud Agent VMs.
    `lib/supabase/server.ts`. The guard rejects bare `createClient(`.
 3. **Every new table in `public` needs `user_id uuid not null`, RLS, and RLS
    tests.** The schema-wide tests enumerate `public` and assert the expected set, so
-   a new table without tests fails CI — by design.
+   a new table without tests fails CI — by design. Data that has no owner does
+   not belong in `public`: `access.early_access_requests` is the only such table
+   and is unreachable except through one `SECURITY DEFINER` function
+   ([ADR 0008](docs/DECISIONS/0008-the-front-door-is-its-own-schema.md)). A new
+   schema also needs a line in `resetDatabase()` and a place in the schema
+   enumeration test.
 4. **Never fabricate data.** No placeholder numbers, sample values, or metrics not
    read from a record. Use the states in `components/os/states.tsx`; there is no
    component for a fake value, and that is deliberate.
@@ -125,6 +134,9 @@ Use a tmux session for long-running servers in Cloud Agent VMs.
 
 - Business logic that can be pure goes in `lib/derive/` or `lib/format/` and is
   unit-tested without a database.
+- Public copy lives as data in `lib/site/`, and every module there is scanned by
+  the banned-language test in `tests/unit/landing.test.ts`. A new public surface
+  adds its module to that list.
 - Colour carries meaning: blue thinking, amber needs-you, sage confirmed, red
   failed. Never decorative.
 - Comments explain constraints and non-obvious intent, never what the next line
