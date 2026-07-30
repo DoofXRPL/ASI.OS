@@ -95,6 +95,52 @@ describe("what a request must contain", () => {
   });
 });
 
+describe("a radio group that has not been answered", () => {
+  /**
+   * Three sources, three encodings of the same silence: React Hook Form reads a
+   * group with nothing checked as `null`, `FormData` omits it so it arrives
+   * `undefined`, and a repopulated form holds `""`.
+   *
+   * Only the last of these used to be recognised, which meant a visitor who
+   * tabbed past the team-size radios was shown Zod's own enum message. These
+   * tests exist so that message can never reach the page again.
+   */
+  const silences = [
+    ["null, as the form library reports it", null],
+    ["undefined, as an omitted field arrives", undefined],
+    ["the empty string, as a refilled form holds it", ""],
+  ] as const;
+
+  for (const [description, value] of silences) {
+    it(`reads an unanswered team size as absent when it is ${description}`, () => {
+      const result = parse({ teamSize: value as never });
+
+      expect(result.success).toBe(true);
+      expect(result.success && result.data.teamSize).toBeUndefined();
+    });
+
+    it(`asks for the use case rather than quoting the enum when it is ${description}`, () => {
+      expect(messageFor(parse({ useCase: value as never }), "useCase")).toBe(
+        "Choose how you plan to use ASI.OS.",
+      );
+    });
+  }
+
+  it("never explains itself in terms of its own accepted values", () => {
+    const result = parse({ useCase: null as never, teamSize: null as never });
+    const messages = result.success
+      ? []
+      : result.error.issues.map((issue) => issue.message);
+
+    for (const message of messages) {
+      expect(message).not.toMatch(/expected one of/i);
+      for (const value of [...USE_CASES, ...TEAM_SIZES]) {
+        expect(message).not.toContain(value);
+      }
+    }
+  });
+});
+
 describe("'something else' has to say what", () => {
   it("is rejected with nothing written", () => {
     expect(messageFor(parse({ useCase: "other" }), "otherUseCase")).toBe(

@@ -110,6 +110,27 @@ const optionalText = (max: number, tooLong: string) =>
     .transform((value) => (value === "" ? undefined : value))
     .optional();
 
+/** The one value that means "this group has not been answered yet". */
+const UNANSWERED = "";
+
+/**
+ * A closed set of choices, plus the several ways of not having chosen.
+ *
+ * A radio group with nothing checked reaches this schema as three different
+ * values depending on who is asking: `FormData` omits the field entirely, React
+ * Hook Form reports the group as `null`, and a form repopulated after a server
+ * rejection holds an empty string. All three mean the same thing, so they are
+ * normalised to one before the closed set is consulted.
+ *
+ * Without that, not having answered yet fails the enum and the visitor is shown
+ * `Invalid option; expected one of "just_me"|…` — Zod explaining itself to a
+ * developer, on a page that is talking to a stranger.
+ */
+const choiceOf = <const T extends readonly [string, ...string[]]>(options: T) =>
+  z
+    .union([z.enum(options), z.literal(UNANSWERED), z.null(), z.undefined()])
+    .transform((value) => value ?? UNANSWERED);
+
 /**
  * One schema for the page and the server.
  *
@@ -137,22 +158,21 @@ export const earlyAccessRequestSchema = z
       LIMITS.company,
       `Keep the company name to ${LIMITS.company} characters or fewer.`,
     ),
-    useCase: z.union([z.enum(USE_CASES), z.literal("")]),
+    useCase: choiceOf(USE_CASES),
     otherUseCase: optionalText(
       LIMITS.otherUseCase,
       `Keep this to ${LIMITS.otherUseCase} characters or fewer.`,
     ),
-    teamSize: z
-      .union([z.enum(TEAM_SIZES), z.literal("")])
-      .optional()
-      .transform((value) => (value === "" ? undefined : value)),
+    teamSize: choiceOf(TEAM_SIZES).transform((value) =>
+      value === UNANSWERED ? undefined : value,
+    ),
     challenge: optionalText(
       LIMITS.challenge,
       `Keep this to ${LIMITS.challenge} characters or fewer.`,
     ),
   })
   .superRefine((values, ctx) => {
-    if (values.useCase === "") {
+    if (values.useCase === UNANSWERED) {
       ctx.addIssue({
         code: "custom",
         path: ["useCase"],
@@ -179,6 +199,14 @@ export const earlyAccessRequestSchema = z
 
 /** What the form holds while it is being filled in: every field a string. */
 export type EarlyAccessFormValues = z.input<typeof earlyAccessRequestSchema>;
+
+/**
+ * What a choice looks like mid-form, unanswered states included. Derived from
+ * the schema so the cards and the radios cannot claim to render a value the
+ * form is incapable of holding.
+ */
+export type UseCaseAnswer = EarlyAccessFormValues["useCase"];
+export type TeamSizeAnswer = EarlyAccessFormValues["teamSize"];
 
 /** What the server acts on: narrowed, trimmed, and lower-cased. */
 export type EarlyAccessRequest = z.output<typeof earlyAccessRequestSchema>;

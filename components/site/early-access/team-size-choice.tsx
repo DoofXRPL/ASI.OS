@@ -2,7 +2,7 @@
 
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { cn } from "@/components/ui/cn";
-import { TEAM_SIZE_OPTIONS, type TeamSize } from "@/lib/schemas/early-access";
+import { TEAM_SIZE_OPTIONS, type TeamSizeAnswer } from "@/lib/schemas/early-access";
 
 /**
  * Team size, as four radios on one line.
@@ -15,7 +15,7 @@ export function TeamSizeChoice({
   selected,
   registration,
 }: {
-  selected: TeamSize | "" | undefined;
+  selected: TeamSizeAnswer;
   registration: UseFormRegisterReturn<"teamSize">;
 }) {
   return (

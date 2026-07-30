@@ -15,7 +15,11 @@ import {
 } from "lucide-react";
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { cn } from "@/components/ui/cn";
-import { USE_CASE_OPTIONS, type UseCase } from "@/lib/schemas/early-access";
+import {
+  USE_CASE_OPTIONS,
+  type UseCase,
+  type UseCaseAnswer,
+} from "@/lib/schemas/early-access";
 
 /**
  * The primary use case, as cards rather than a select.
@@ -44,7 +48,7 @@ export function UseCaseCards({
   selected,
   registration,
 }: {
-  selected: UseCase | "";
+  selected: UseCaseAnswer;
   /** The field's `name`, `ref` and handlers, spread onto every radio. */
   registration: UseFormRegisterReturn<"useCase">;
 }) {
