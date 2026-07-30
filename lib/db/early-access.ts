@@ -81,6 +81,10 @@ function asOutcome(value: unknown): EarlyAccessOutcome {
     case "throttled":
     case "refused":
     case "unconfigured":
+    // Returned when the queue itself refused the submission. The function
+    // answers rather than raising so the rate-limit count it already made
+    // survives — see supabase/migrations/0005_intake_meter_is_atomic.sql.
+    case "failed":
       return value;
     default:
       return "failed";

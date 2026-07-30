@@ -114,12 +114,69 @@ export async function registerIntakeKey(
 }
 
 /**
- * A caller identifier of the shape `access.intake_attempts.client_hash` accepts:
+ * A caller identifier of the shape `access.intake_counters.bucket` accepts:
  * 32 hexadecimal characters, which is what `hashClientId` produces in the
  * application. Random, so one test's meter is never another's.
  */
 export function testClientHash(): string {
   return randomBytes(16).toString("hex");
+}
+
+/**
+ * Several independent `anon` connections, each committing its own work.
+ *
+ * `asAnon` runs everything on one connection inside a transaction that is rolled
+ * back, which is right for testing what a role may touch and blind to anything
+ * decided *between* transactions. A limit that is read and then acted on looks
+ * correct from a single connection and holds nothing at all from forty — so
+ * proving a limit holds needs real backends, committing for real.
+ *
+ * The caller is responsible for cleaning up, since nothing here is rolled back.
+ */
+export async function withParallelAnon<T>(
+  count: number,
+  work: (clients: Client[]) => Promise<T>,
+  url = resolveDatabaseUrl(),
+): Promise<T> {
+  const clients = await Promise.all(
+    Array.from({ length: count }, async () => {
+      const client = await connect(url);
+      // Downgraded for the life of the connection, not for a transaction, so the
+      // statement under test runs in its own implicit transaction — exactly as
+      // PostgREST runs one RPC call.
+      await client.query("set role anon");
+      return client;
+    }),
+  );
+
+  try {
+    return await work(clients);
+  } finally {
+    await Promise.all(clients.map((client) => client.end().catch(() => undefined)));
+  }
+}
+
+/**
+ * Runs the same statement on every connection at once and returns what each
+ * said, with a failure reported as its SQLSTATE rather than thrown — a test
+ * about a limit wants to see all the answers, not the first exception.
+ */
+export async function inParallel(
+  clients: Client[],
+  sql: string,
+  params: (index: number) => unknown[],
+): Promise<string[]> {
+  // Warmed first, so the parse and bind round trips are not what staggers them.
+  await Promise.all(clients.map((client) => client.query("select 1")));
+
+  return Promise.all(
+    clients.map((client, index) =>
+      client.query<{ result: string }>(sql, params(index)).then(
+        (result) => String(result.rows[0]?.result),
+        (error: { code?: string }) => `error:${error.code ?? "unknown"}`,
+      ),
+    ),
+  );
 }
 
 export interface TestUser {

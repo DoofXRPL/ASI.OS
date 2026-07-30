@@ -26,11 +26,17 @@ import {
  * needs to change the thresholds it does so through `inspect`, inside the
  * transaction the harness rolls back, so no test can tune the door for another.
  *
- * See supabase/migrations/0004_intake_guard.sql and docs/SECURITY.md.
+ * One thing this suite cannot see, by construction: it submits on a single
+ * connection, so it observes its own uncommitted work and a limit that is read
+ * and then acted on looks perfect to it. That is what intake-concurrency.test.ts
+ * is for.
+ *
+ * See supabase/migrations/0004_intake_guard.sql,
+ * supabase/migrations/0005_intake_meter_is_atomic.sql and docs/SECURITY.md.
  */
 
 const KEY = "intake-guard-suite-key-0123456789abcdef";
-const ATTEMPTS = "access.intake_attempts";
+const COUNTERS = "access.intake_counters";
 const QUEUE = "access.early_access_requests";
 
 /**
@@ -193,24 +199,41 @@ describe("a caller the meter cannot count is not served", () => {
   it("cannot be made to store an address even by writing one directly", async () => {
     // The privacy promise is a check constraint, not a convention in the calling
     // code. This is the test that makes it one.
-    const denial = await expectDenied(() =>
-      admin.query(`insert into ${ATTEMPTS} (client_hash, outcome) values ('203.0.113.7', 'accepted')`),
-    );
-    expect(denial.code).toBe("23514");
+    for (const bucket of ["203.0.113.7", "2001:db8::1", "203.0.113.0/24", "2001:db8::/64"]) {
+      const denial = await expectDenied(() =>
+        admin.query(`insert into ${COUNTERS} (bucket, window_start) values ($1, now())`, [bucket]),
+      );
+      expect(denial.code, `${bucket} must not be storable`).toBe("23514");
+    }
   });
 
-  it("records nothing but a digest, an outcome and a time", async () => {
+  it("records nothing but a bucket, a window and two counts", async () => {
     const { rows } = await admin.query<{ column_name: string }>(
       `select column_name from information_schema.columns
-       where table_schema = 'access' and table_name = 'intake_attempts'
+       where table_schema = 'access' and table_name = 'intake_counters'
        order by column_name`,
     );
 
     expect(rows.map((c) => c.column_name)).toEqual([
-      "client_hash",
-      "created_at",
-      "id",
-      "outcome",
+      "admitted",
+      "bucket",
+      "refused",
+      "window_start",
+    ]);
+  });
+
+  it("has no table left that records one row per call", async () => {
+    // 0004's `intake_attempts` was what made counting grow with the flood it was
+    // meant to absorb. Its absence is the guarantee.
+    const { rows } = await admin.query<{ table_name: string }>(
+      `select table_name from information_schema.tables
+       where table_schema = 'access' order by table_name`,
+    );
+    expect(rows.map((r) => r.table_name)).toEqual([
+      "early_access_requests",
+      "intake_counters",
+      "intake_keys",
+      "intake_limits",
     ]);
   });
 });
@@ -256,10 +279,11 @@ describe("the meter, per caller", () => {
       expect(await submit(query, { client })).toBe("accepted");
       expect(await submit(query, { client })).toBe("throttled");
 
-      // Their attempts move outside the window rather than being deleted, which
-      // is what makes this a sliding window and not a counter someone resets.
+      // A window is a row, so the next one starts at nothing. Moving this row
+      // back is the same thing as a minute passing.
       await inspect(
-        `update ${ATTEMPTS} set created_at = now() - interval '2 minutes' where client_hash = $1`,
+        `update ${COUNTERS} set window_start = window_start - interval '2 minutes'
+          where bucket = $1`,
         [client],
       );
 
@@ -267,7 +291,7 @@ describe("the meter, per caller", () => {
     });
   });
 
-  it("extends the wait for a caller who keeps knocking", async () => {
+  it("records a caller who keeps knocking without letting it raise their count", async () => {
     await asAnon(admin, async ({ query, inspect }) => {
       await setLimit(inspect, { per_client_max: "1", per_client_window: "interval '1 hour'" });
       const client = testClientHash();
@@ -276,18 +300,15 @@ describe("the meter, per caller", () => {
       expect(await submit(query, { client })).toBe("throttled");
       expect(await submit(query, { client })).toBe("throttled");
 
-      const { rows } = await inspect<{ outcome: string; total: string }>(
-        `select outcome, count(*)::text as total from ${ATTEMPTS}
-         where client_hash = $1 group by outcome order by outcome`,
+      const { rows } = await inspect<{ admitted: number; refused: number }>(
+        `select admitted, refused from ${COUNTERS} where bucket = $1`,
         [client],
       );
 
-      // Refusals are counted too, so hammering pushes the window forward rather
-      // than being free.
-      expect(rows).toEqual([
-        { outcome: "accepted", total: "1" },
-        { outcome: "throttled", total: "2" },
-      ]);
+      // The refusals are written down and read by nothing. Recorded because a
+      // sustained refusal rate is the signal worth looking at; not counted,
+      // because a refusal that raised the count would be its own next reason.
+      expect(rows).toEqual([{ admitted: 1, refused: 2 }]);
     });
   });
 
@@ -344,7 +365,7 @@ describe("the meter, across the deployment", () => {
       ["per_client_max", "0"],
       ["global_max", "0"],
       ["per_client_window", "interval '1 second'"],
-      ["retain_attempts", "interval '1 minute'"],
+      ["retain_counters", "interval '1 minute'"],
     ] as const) {
       const denial = await expectDenied(() =>
         admin.query(`update access.intake_limits set ${column} = ${value}`),
@@ -363,18 +384,18 @@ describe("the meter, across the deployment", () => {
 });
 
 describe("the meter forgets", () => {
-  it("prunes attempts older than the retention it was given", async () => {
+  it("prunes windows older than the retention it was given", async () => {
     await asAnon(admin, async ({ query, inspect }) => {
       const stale = testClientHash();
       await inspect(
-        `insert into ${ATTEMPTS} (client_hash, outcome, created_at)
-         values ($1, 'accepted', now() - interval '48 hours')`,
+        `insert into ${COUNTERS} (bucket, window_start, admitted)
+         values ($1, now() - interval '48 hours', 1)`,
         [stale],
       );
 
       await submit(query);
 
-      const { rows } = await inspect(`select id from ${ATTEMPTS} where client_hash = $1`, [
+      const { rows } = await inspect(`select admitted from ${COUNTERS} where bucket = $1`, [
         stale,
       ]);
       expect(rows, "a counter is not a log").toHaveLength(0);
@@ -383,7 +404,7 @@ describe("the meter forgets", () => {
 });
 
 describe("none of this machinery is reachable from outside the function", () => {
-  const tables = ["access.intake_keys", "access.intake_limits", ATTEMPTS];
+  const tables = ["access.intake_keys", "access.intake_limits", COUNTERS];
 
   it("refuses a read of the keys, the thresholds or the counters", async () => {
     for (const table of tables) {
@@ -399,7 +420,7 @@ describe("none of this machinery is reachable from outside the function", () => 
     const writes = [
       `insert into access.intake_keys (label, key_sha256) values ('mine', sha256('x'::bytea))`,
       "update access.intake_limits set per_client_max = 1000000",
-      `delete from ${ATTEMPTS}`,
+      `delete from ${COUNTERS}`,
     ];
 
     for (const statement of writes) {
