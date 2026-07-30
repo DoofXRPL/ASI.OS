@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { Client, type QueryResult, type QueryResultRow } from "pg";
@@ -86,6 +87,39 @@ export async function resetDatabase(url = resolveDatabaseUrl()): Promise<void> {
 export async function migrationFiles(): Promise<string[]> {
   const entries = await readdir(MIGRATIONS_DIR);
   return entries.filter((name) => name.endsWith(".sql")).sort();
+}
+
+/**
+ * Teaches the database to recognise a caller of `public.request_early_access()`.
+ *
+ * The digest is computed here, in Node, rather than by the database — which is
+ * the point. If `createHash("sha256")` and PostgreSQL's `sha256(convert_to(...))`
+ * ever disagreed about the same key, the front door would refuse the only caller
+ * allowed through it, and every test that calls the function would notice.
+ *
+ * Committed rather than rolled back: each suite registers its own key once and
+ * the tests inside it run in transactions that are discarded.
+ */
+export async function registerIntakeKey(
+  client: Client,
+  key: string,
+  label: string,
+): Promise<void> {
+  await client.query(
+    `insert into access.intake_keys (label, key_sha256)
+     values ($1, decode($2, 'hex'))
+     on conflict (key_sha256) do nothing`,
+    [label, createHash("sha256").update(key, "utf8").digest("hex")],
+  );
+}
+
+/**
+ * A caller identifier of the shape `access.intake_attempts.client_hash` accepts:
+ * 32 hexadecimal characters, which is what `hashClientId` produces in the
+ * application. Random, so one test's meter is never another's.
+ */
+export function testClientHash(): string {
+  return randomBytes(16).toString("hex");
 }
 
 export interface TestUser {

@@ -6,6 +6,7 @@ import {
   connect,
   createUser,
   expectDenied,
+  registerIntakeKey,
   type TestUser,
 } from "./harness";
 
@@ -27,10 +28,26 @@ import {
  */
 
 const QUEUE = "access.early_access_requests";
-const RPC = "public.request_early_access(text, text, text, text, text, text, text)";
+const RPC =
+  "public.request_early_access(text, text, text, text, text, text, text, text, text)";
 
-/** Named arguments, so a reordered signature fails loudly rather than silently. */
+const KEY = "early-access-suite-key-0123456789abcdef";
+
+/**
+ * Named arguments, so a reordered signature fails loudly rather than silently.
+ *
+ * `p_key` and `p_client` are what 0004 added: a submission has to say which
+ * deployment it came from, and has to give the meter something to count. Both
+ * are filled in here so these tests stay about the queue itself — the door they
+ * now pass through is tested in intake-guard.test.ts.
+ *
+ * `md5(random()::text)` is a fresh caller per call, of exactly the shape
+ * `client_hash` is constrained to. It means no test in this file can be
+ * rate limited by another, which would turn a change to the thresholds into a
+ * failure in a suite that is not about them.
+ */
 const REQUEST = `public.request_early_access(
+  p_key => '${KEY}', p_client => md5(random()::text),
   p_name => $1, p_email => $2, p_use_case => $3,
   p_company => $4, p_other_use_case => $5, p_team_size => $6, p_challenge => $7
 )`;
@@ -44,6 +61,7 @@ let member: TestUser;
 beforeAll(async () => {
   admin = await connect();
   member = await createUser(admin, "early-access-member@asi.test", "Member");
+  await registerIntakeKey(admin, KEY, "early-access-suite");
 });
 
 afterAll(async () => {
@@ -58,7 +76,7 @@ async function countRows(): Promise<number> {
 }
 
 describe("the access schema is not part of the user data plane", () => {
-  it("holds exactly the intake table and nothing else", async () => {
+  it("holds the intake table and the front door's own machinery, and nothing else", async () => {
     const { rows } = await admin.query<{ tablename: string }>(
       `select c.relname as tablename
        from pg_class c
@@ -67,7 +85,15 @@ describe("the access schema is not part of the user data plane", () => {
        order by c.relname`,
     );
 
-    expect(rows.map((r) => r.tablename)).toEqual(["early_access_requests"]);
+    // The queue, plus the three tables 0004 added to lock and meter the door.
+    // Enumerated rather than counted: a table appearing here that nobody named
+    // is exactly what this assertion exists to catch.
+    expect(rows.map((r) => r.tablename)).toEqual([
+      "early_access_requests",
+      "intake_attempts",
+      "intake_keys",
+      "intake_limits",
+    ]);
   });
 
   it("matches the column shape the application types expect", async () => {
@@ -116,7 +142,14 @@ describe("the access schema is not part of the user data plane", () => {
     expect(policies).toHaveLength(0);
   });
 
-  it("gives no API role access to the schema or the table", async () => {
+  it("gives no API role access to the schema or any table in it", async () => {
+    const tables = [
+      QUEUE,
+      "access.intake_keys",
+      "access.intake_limits",
+      "access.intake_attempts",
+    ];
+
     for (const role of ["anon", "authenticated"]) {
       const { rows: schema } = await admin.query<{ allowed: boolean }>(
         "select has_schema_privilege($1, 'access', 'USAGE') as allowed",
@@ -124,12 +157,16 @@ describe("the access schema is not part of the user data plane", () => {
       );
       expect(rows(schema).allowed, `${role} must not reach the access schema`).toBe(false);
 
-      const { rows: table } = await admin.query<{ allowed: boolean }>(
-        `select bool_or(has_table_privilege($1, $2, priv)) as allowed
-         from unnest(array['SELECT','INSERT','UPDATE','DELETE']) as priv`,
-        [role, QUEUE],
-      );
-      expect(rows(table).allowed, `${role} must hold no privilege on the queue`).toBe(false);
+      for (const table of tables) {
+        const { rows: granted } = await admin.query<{ allowed: boolean }>(
+          `select bool_or(has_table_privilege($1, $2, priv)) as allowed
+           from unnest(array['SELECT','INSERT','UPDATE','DELETE']) as priv`,
+          [role, table],
+        );
+        expect(rows(granted).allowed, `${role} must hold no privilege on ${table}`).toBe(
+          false,
+        );
+      }
     }
   });
 });
@@ -167,19 +204,42 @@ describe("the request function is the only way in", () => {
     });
   });
 
-  it("returns nothing, so it cannot report whether an address is already listed", async () => {
-    const { rows } = await admin.query<{ returns: string; kind: string; definer: boolean }>(
+  it("exists exactly once, so there is no laxer version of it to call", async () => {
+    // 0004 replaced the signature rather than adding to it. An overload without
+    // `p_key` would be a door beside the locked one.
+    const { rows } = await admin.query<{ returns: string; definer: boolean; args: string }>(
       `select pg_get_function_result(p.oid) as returns,
-              p.prokind as kind,
-              p.prosecdef as definer
+              p.prosecdef as definer,
+              pg_get_function_identity_arguments(p.oid) as args
        from pg_proc p
        join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'public' and p.proname = 'request_early_access'`,
     );
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.returns).toBe("void");
     expect(rows[0]?.definer).toBe(true);
+    expect(rows[0]?.args).toBe(
+      "p_key text, p_client text, p_name text, p_email text, p_use_case text, " +
+        "p_company text, p_other_use_case text, p_team_size text, p_challenge text",
+    );
+  });
+
+  it("says only which of four things happened, never whether an address was new", async () => {
+    await asAnon(admin, async ({ query }) => {
+      const first = await query<{ outcome: string }>(
+        `select ${REQUEST} as outcome`,
+        ["First", "oracle@example.com", "research", null, null, null, null],
+      );
+      const second = await query<{ outcome: string }>(
+        `select ${REQUEST} as outcome`,
+        ["Second", "oracle@example.com", "research", null, null, null, null],
+      );
+
+      // The second call inserted nothing. It is answered identically anyway,
+      // which is what stops the form from being a way to test an address.
+      expect(first.rows[0]?.outcome).toBe("accepted");
+      expect(second.rows[0]?.outcome).toBe("accepted");
+    });
   });
 
   it("pins its search_path, as every function in this project must", async () => {
