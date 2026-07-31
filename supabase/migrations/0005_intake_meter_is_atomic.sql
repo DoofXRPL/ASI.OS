@@ -10,8 +10,9 @@
 -- this schema, five runs each: 40 parallel calls from one identifier with
 -- `per_client_max = 5` wrote 11 to 39 rows; 100 with `per_client_max = 3` wrote 6
 -- to 78; 60 parallel callers against `global_max = 10` wrote 48 to 59.
--- Sequentially the same calls stop at exactly the limit, which is why 125 passing
--- tests said nothing about it — every one of them submits on a single connection.
+-- Sequentially the same calls stop at exactly the limit, which is why the 132
+-- passing tests covering this path said nothing about it — every one of them
+-- submits on a single connection.
 --
 -- Two further defects share the same cause, and the same fix:
 --

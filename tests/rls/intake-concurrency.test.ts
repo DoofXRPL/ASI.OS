@@ -9,8 +9,8 @@ import {
 } from "./harness";
 
 /**
- * The tests that were missing, and whose absence is the reason 125 passing ones
- * said nothing about whether the front door has a limit.
+ * The tests that were missing, and whose absence is the reason the 132 passing
+ * ones covering this path said nothing about whether the front door has a limit.
  *
  * Every other suite here submits on one connection inside a transaction that is
  * rolled back. That is the right shape for asking what a role may touch, and it

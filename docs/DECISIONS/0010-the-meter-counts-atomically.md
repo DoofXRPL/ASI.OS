@@ -30,10 +30,10 @@ number:
 | 100, one caller | `per_client_max` 3 | 6–78 (13, 6, 33, 56, 78) | 3 every run |
 | 60 distinct callers | `global_max` 10 | 48–59 (48, 59, 58, 57, 54) | 10 every run |
 
-The same calls made one at a time stop at exactly the limit. That is why 125
-passing RLS tests said nothing about it: every one of them submitted on a single
-connection inside a transaction that was rolled back, which is the one
-arrangement in which a check-then-act meter looks perfect.
+The same calls made one at a time stop at exactly the limit. That is why the 132
+passing tests covering this path said nothing about it: every one that reached the
+database submitted on a single connection inside a transaction that was rolled
+back, which is the one arrangement in which a check-then-act meter looks perfect.
 
 ### Refusals counted towards the window that refused them
 
