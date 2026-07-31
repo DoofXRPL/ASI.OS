@@ -246,9 +246,11 @@ Useful questions and the answers to look for:
    hour from one actor refuses everybody else until the window turns over. Raising
    it trades that for a larger queue to clean; the ceiling is data so the trade can
    be made in the moment. What is no longer true is that refusals sustain it: only
-   an admitted call increments `admitted`, so the cost of holding the door shut is
-   two hundred rows an hour and not one request every eighteen seconds. Reaching it
-   costs an attacker the same as reaching it legitimately.
+   an admitted call increments `admitted`, and a caller over their own limit
+   returns before the deployment's counter is touched. So the cost of holding the
+   door shut is two hundred admitted rows an hour rather than two hundred refusals
+   from one address, which is what it used to be. Reaching the ceiling now costs an
+   attacker the same as reaching it legitimately.
 4. **The intake key is a shared secret in two places.** If it leaks, an attacker
    regains the ability to write to the queue at the metered rate — not to read
    anything, and not to touch any other table. Rotation is one `UPDATE` and one

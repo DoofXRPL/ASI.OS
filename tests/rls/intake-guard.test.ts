@@ -352,6 +352,28 @@ describe("the meter, across the deployment", () => {
     });
   });
 
+  it("does not let one caller spend the deployment's budget on their own refusals", async () => {
+    // The cheapest route to shutting the door for everybody, and the reason the
+    // caller's own limit is checked first. Under the previous meter each refusal
+    // was a row and the deployment count included every row, so twenty calls from
+    // one caller against a ceiling of fifty consumed twenty of it. Here they
+    // consume the two they were admitted, and nothing else.
+    await asAnon(admin, async ({ query, inspect }) => {
+      await inspect("update access.intake_limits set per_client_max = 2, global_max = 50");
+      const client = testClientHash();
+
+      for (let attempt = 0; attempt < 20; attempt += 1) await submit(query, { client });
+
+      const { rows } = await inspect<{ admitted: number; refused: number }>(
+        `select admitted, refused from ${COUNTERS} where bucket = 'deployment'`,
+      );
+      expect(rows).toEqual([{ admitted: 2, refused: 0 }]);
+
+      // And the ceiling still has room, which is the thing that matters.
+      expect(await submit(query, { client: testClientHash() })).toBe("accepted");
+    });
+  });
+
   it("is unconfigured, rather than unlimited, with no thresholds to read", async () => {
     await asAnon(admin, async ({ query, inspect }) => {
       await inspect("delete from access.intake_limits");

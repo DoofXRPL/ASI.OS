@@ -55,6 +55,19 @@ for themselves shuts the door for free.
 At the shipped defaults the sustaining rate was 200 rows an hour, or one request
 every eighteen seconds. The edge token bucket permits one every six.
 
+There was a cheaper route to the same place, which no report named. A caller over
+their *own* limit still spent the deployment's budget, because the refusal it
+earned was a row and the deployment count included every row. With `per_client_max`
+2 and the ceiling 50, twenty calls from one caller consumed **20** of the 50 under
+0004 and **2** under 0005. At the shipped defaults that is one address filling a
+ceiling of 200 with calls that could never have been admitted — a couple of minutes
+of work at the rate the edge bucket allows, and no need to sustain anything
+afterwards.
+
+The fix is the same one: only an admitted call increments `admitted`, and the
+caller's own limit is checked first, so a caller who is over it returns before the
+deployment's counter is touched at all.
+
 ### Counting got more expensive the more there was to count
 
 The deployment-wide `count(*)` had no bound but the window. Median of 25 calls at
