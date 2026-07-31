@@ -56,7 +56,7 @@ table; the intake function is the only object `anon` may execute.
 | 2 | Mass submission through the form | Per-caller window and deployment ceiling in `access.intake_limits`, enforced by the statement in `public.request_early_access()` that counts the call, so concurrent callers queue on one row rather than each reading the same number | A caller who times a window boundary sends `per_client_max` twice across it; the ceiling is a bound, not a hole |
 | 2a | One machine rotating addresses to get a budget per address | The counted identity is a *network*: an IPv6 address is bucketed to its /64 before hashing, so the 18 quintillion addresses one subscriber can bind share one budget | IPv4 is not truncated on purpose (§8.7). Rotating IPv4 needs addresses genuinely acquired, and the deployment ceiling answers that |
 | 3 | Burst flooding of the Server Action | Token bucket in `proxy.ts`, then the database's own count | The bucket is per instance. Deliberate: it is the cheap layer, not the load-bearing one |
-| 4 | Oversized or malformed bodies | `content-length` check in the proxy, `bodySizeLimit` of 64 KB, Zod at the boundary, CHECK constraints in the table | None material. A body that lies about its length is refused by the body limit rather than the header check |
+| 4 | Oversized or malformed bodies | `content-length` check in the proxy, `bodySizeLimit` of 64 KB, Zod at the boundary, CHECK constraints in the table | A body that declares no length at all is refused one layer later and less gracefully — see §8.5. Nothing is written either way |
 | 5 | Naive bots submitting every input they find | Honeypot field, answered as a success so the bot learns nothing | A bot that renders the page and respects `aria-hidden` gets past it and meets the rate limits instead |
 | 6 | Using the form to test whether an address is registered | The function returns `accepted` for a duplicate exactly as for a new row; `on conflict do nothing` | None. The queue cannot be read, counted, or probed through any exposed object |
 | 7 | Reading or tampering with the queue | Schema not exposed to PostgREST; no privilege for `anon` or `authenticated`; RLS on with no policies | None known. Enumerated in `tests/rls/early-access.test.ts` |
@@ -161,6 +161,9 @@ Recommended on Vercel Firewall, roughly in the order worth adding them:
    to `GET`: the page should stay readable by anything, including archivers.
 5. **A persistent action on repeated denials** so an address that has been refused
    many times keeps being refused, rather than being counted afresh each minute.
+6. **A request-size rule on `POST /early-access`**, around 64 KB to match
+   `bodySizeLimit`. This is the only layer that can refuse an oversized body whose
+   length the request never declares — §8.5 explains why the edge check cannot.
 
 Deliberately **not** recommended:
 
@@ -250,9 +253,19 @@ Useful questions and the answers to look for:
    regains the ability to write to the queue at the metered rate — not to read
    anything, and not to touch any other table. Rotation is one `UPDATE` and one
    environment variable.
-5. **`content-length` is the client's own claim.** A body that understates its
-   length is refused by `bodySizeLimit` rather than by the header check, one layer
-   later and after being read.
+5. **`content-length` is the client's own claim, and a chunked body makes none.**
+   The header check in `proxy.ts` cannot see the size of a body sent with
+   `Transfer-Encoding: chunked`, so an oversized one reaches `bodySizeLimit`
+   instead. Measured against a production build: a 70 KB body *with* the header is
+   the intended `413` and the styled page, and the same payload sent chunked is a
+   bare `500 Internal Server Error`, logged by Next.js rather than as `oversize`.
+   Nothing is validated, recorded or metered on that path, so the cost is one
+   function invocation and a log line the platform will surface as an error. It is
+   deliberately not fixed by refusing bodies with no declared length: a browser
+   form always sends one, but a proxy that drops the header would then be a form
+   that silently rejects real submissions, which is worse than an ugly error page
+   for a crafted request. The answer is the firewall request-size rule in §5, which
+   acts before a function is invoked at all.
 6. **Only `/early-access` is guarded at the edge.** `/login` is rate limited by
    Supabase Auth rather than by this code. Worth revisiting if a firewall rule is
    added, since one rule could cover both.

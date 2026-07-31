@@ -7,10 +7,11 @@
 -- Under READ COMMITTED — which is what every PostgREST call runs at — concurrent
 -- transactions cannot see each other's uncommitted attempt rows, so they all
 -- read the same number and all decide they are under the limit. Measured against
--- this schema: 40 parallel calls from one identifier, `per_client_max = 5`, wrote
--- 33 rows; 60 parallel callers against `global_max = 10` wrote 33. Sequentially
--- the same calls stop at exactly 5, which is why 125 passing tests said nothing
--- about it — every one of them submits on a single connection.
+-- this schema, five runs each: 40 parallel calls from one identifier with
+-- `per_client_max = 5` wrote 11 to 39 rows; 100 with `per_client_max = 3` wrote 6
+-- to 78; 60 parallel callers against `global_max = 10` wrote 48 to 59.
+-- Sequentially the same calls stop at exactly the limit, which is why 125 passing
+-- tests said nothing about it — every one of them submits on a single connection.
 --
 -- Two further defects share the same cause, and the same fix:
 --
@@ -18,18 +19,21 @@
 --     row in it, including the rows written *by* refusals. A caller knocking
 --     faster than `global_max / global_window` therefore kept the ceiling met
 --     with its own refusals, and the form stayed closed for everybody for as
---     long as the knocking continued. At the shipped defaults that is one
---     request every eighteen seconds, which the edge bucket permits three times
---     over.
+--     long as the knocking continued. Filling a ceiling of three and then
+--     knocking forty times left the next decision reading 43. At the shipped
+--     defaults the sustaining rate is one request every eighteen seconds, which
+--     the edge bucket permits three times over.
 --
 --   * **Counting got more expensive the more it had to count.** The global
 --     `count(*)` had no bound but the window, so a flood bought the attacker
---     latency on every subsequent call. Measured, with the table vacuumed at
---     each step so bloat is not what is being read: 0.82 ms per call at a
---     thousand rows in the window, 6.5 ms at a hundred thousand, 79 ms at a
---     million. Aging the same million rows out of the window returns the call to
---     0.96 ms, so it is the number of rows counted and nothing else. Forcing the
---     count onto `intake_attempts_created_idx` makes it slower, not faster: an
+--     latency on every subsequent call. Median of 25 calls, with the table
+--     vacuumed and analysed at each step so bloat is not what is being read:
+--     0.59 ms at a thousand rows in the window, 1.3 ms at ten thousand, 5.6 ms
+--     at a hundred thousand, 47 ms at a million. Aging the same million rows out
+--     of the window returns the call to under a millisecond, so it is the number
+--     of rows counted and nothing else. The plan is a parallel sequential scan,
+--     so a submission also takes two parallel workers with it. Forcing the count
+--     onto `intake_attempts_created_idx` makes it slower, not faster: an
 --     index-only scan of a million entries is still a scan of a million entries.
 --
 -- ============================================================================
@@ -51,12 +55,13 @@
 -- become the reason for the next refusal.
 --
 -- An advisory lock would also have made the count atomic, and was measured
--- against this: correct, but 2.5x the wall time for the per-caller check, and for
--- a deployment-wide ceiling it has to be one lock shared by every caller, which
--- serialises the whole endpoint behind a count that is itself O(rows). 30
--- parallel calls with 300,000 rows of history took 834 ms that way against 13 ms
--- for the counter. It fixes one of the three defects; the counter fixes all
--- three, and is less code.
+-- against this rather than argued about: correct, but 51 ms against 13 for 30
+-- parallel calls from one caller, and for a deployment-wide ceiling it has to be
+-- one lock shared by every caller, which serialises the whole endpoint behind a
+-- count that is itself O(rows) — 259 ms against 13 with an empty table, 662
+-- against 19 with 300,000 rows of history. It also fixes only the race, because
+-- the cost and the lockout come from what is counted rather than from the absence
+-- of a lock. The counter fixes all three, and is less code.
 --
 -- The cost is that the windows are now fixed rather than sliding, so a caller who
 -- times it can send `per_client_max` twice across a boundary. That is the
@@ -241,9 +246,10 @@ begin
   -- Bounded, and taking only rows nothing else has claimed. 0004 deleted every
   -- expired row on every call, which is fine until there are a lot of them: with
   -- a million expired windows, sixty parallel callers all tried to delete the
-  -- same million rows, one did it and the other fifty-nine waited — 2.7 seconds
-  -- for a form submission. `limit` bounds the work and `skip locked` means
-  -- concurrent callers take different batches instead of queueing for one.
+  -- same million rows, one did it and the other fifty-nine waited — 2,288 ms for
+  -- a form submission, against 78 ms this way. `limit` bounds the work and
+  -- `skip locked` means concurrent callers take different batches instead of
+  -- queueing for one.
   --
   -- Two rows can be created per call and two hundred are removed, so this keeps
   -- up with a hundred times the traffic that fills it. A backlog left by a flood
