@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { safeRedirectPath } from "@/lib/auth/redirect";
 import { createBurstLimiter } from "@/lib/early-access/burst";
+import { clientBucket, clientIpFromHeaders } from "@/lib/early-access/client-id";
 import { INTAKE_BURST, INTAKE_MAX_BODY_BYTES } from "@/lib/early-access/limits";
 import { intakeEvent, logIntake, type IntakeOutcome } from "@/lib/early-access/log";
 import { redirectPreservingSession, updateSession } from "@/lib/supabase/proxy-session";
@@ -44,7 +45,7 @@ function isPrivate(pathname: string): boolean {
  *
  * Neither replaces what the database does. The bucket lives in one instance's
  * memory, so a distributed flood spreads across several and each sees a fraction
- * of it; the count that holds is in `access.intake_attempts`. This is the cheap
+ * of it; the count that holds is in `access.intake_counters`. This is the cheap
  * layer, in the cheapest place, and it is honest about being the weaker one.
  *
  * Volumetric attacks are not answered here at all. Absorbing those is what the
@@ -100,9 +101,17 @@ function guardIntake(request: NextRequest): NextResponse | null {
   return null;
 }
 
+/**
+ * Which bucket a request draws from at the edge.
+ *
+ * The same network the database meters, for the same reason: keying on the exact
+ * address gave every address in an IPv6 /64 its own bucket, so rotating inside
+ * one — which costs an attacker nothing — refilled this limiter as reliably as it
+ * emptied the one in PostgreSQL. `clientBucket` is the single definition of what
+ * counts as one caller.
+ */
 function bucketKey(request: NextRequest): string {
-  const forwarded = request.headers.get("x-vercel-forwarded-for") ?? request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for");
-  return forwarded?.split(",")[0]?.trim() ?? "unattributed";
+  return clientBucket(clientIpFromHeaders(request.headers)) ?? "unattributed";
 }
 
 /**

@@ -98,17 +98,38 @@ export const LIMITS = {
 } as const;
 
 /**
+ * Control characters that no answer contains and PostgreSQL will not store.
+ *
+ * A NUL byte is the one that matters: `text` cannot hold it, so a submission
+ * carrying one used to reach the database and abort the whole call — including
+ * the rate-limit counter spent on it, which made such a request free and
+ * unmetered. The database now records the count regardless
+ * (`supabase/migrations/0005_intake_meter_is_atomic.sql`), and this refuses the
+ * input at the boundary so the situation does not arise. Tab, newline and
+ * carriage return are allowed: the two long answers are textareas.
+ */
+const CONTROL_CHARACTERS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
+
+const noControlCharacters = <T extends z.ZodType<string | undefined>>(schema: T) =>
+  schema.refine(
+    (value) => value === undefined || !CONTROL_CHARACTERS.test(value),
+    "Remove any special characters and try again.",
+  );
+
+/**
  * Every unfilled input in a `FormData` arrives as an empty string, so each
  * optional field collapses "" to undefined before anything else looks at it.
  * Without that, "optional" would quietly mean "optional unless you focused it".
  */
 const optionalText = (max: number, tooLong: string) =>
-  z
-    .string()
-    .trim()
-    .max(max, tooLong)
-    .transform((value) => (value === "" ? undefined : value))
-    .optional();
+  noControlCharacters(
+    z
+      .string()
+      .trim()
+      .max(max, tooLong)
+      .transform((value) => (value === "" ? undefined : value))
+      .optional(),
+  );
 
 /** The one value that means "this group has not been answered yet". */
 const UNANSWERED = "";
@@ -142,11 +163,13 @@ const choiceOf = <const T extends readonly [string, ...string[]]>(options: T) =>
  */
 export const earlyAccessRequestSchema = z
   .object({
-    name: z
-      .string()
-      .trim()
-      .min(1, "Tell us your name.")
-      .max(LIMITS.name, `Keep your name to ${LIMITS.name} characters or fewer.`),
+    name: noControlCharacters(
+      z
+        .string()
+        .trim()
+        .min(1, "Tell us your name.")
+        .max(LIMITS.name, `Keep your name to ${LIMITS.name} characters or fewer.`),
+    ),
     email: z
       .string()
       .trim()

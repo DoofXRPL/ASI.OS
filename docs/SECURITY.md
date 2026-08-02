@@ -11,7 +11,9 @@ is not, and what to reach for if that changes.
 
 Decisions: [ADR 0008](DECISIONS/0008-the-front-door-is-its-own-schema.md) built
 the queue; [ADR 0009](DECISIONS/0009-the-front-door-is-gated-and-metered.md)
-locked and metered it.
+locked and metered it;
+[ADR 0010](DECISIONS/0010-the-meter-counts-atomically.md) made the meter hold
+under concurrency, which the first one did not.
 
 ## 1. What the path is
 
@@ -51,14 +53,15 @@ table; the intake function is the only object `anon` may execute.
 | # | Threat | What answers it | Residual risk |
 | --- | --- | --- | --- |
 | 1 | Direct calls to the RPC, bypassing every application check | `p_key` must match a digest in `access.intake_keys` | The key leaking. It is server-only, absent from client bundles, and confined to one module by `npm run guard:service-role` |
-| 2 | Mass submission through the form | Per-caller window and deployment ceiling in `access.intake_limits`, counted in PostgreSQL | A distributed source with many addresses reaches the global ceiling, which then also refuses legitimate visitors until the window passes |
+| 2 | Mass submission through the form | Per-caller window and deployment ceiling in `access.intake_limits`, enforced by the statement in `public.request_early_access()` that counts the call, so concurrent callers queue on one row rather than each reading the same number | A caller who times a window boundary sends `per_client_max` twice across it; the ceiling is a bound, not a hole |
+| 2a | One machine rotating addresses to get a budget per address | The counted identity is a *network*: an IPv6 address is bucketed to its /64 before hashing, so the 18 quintillion addresses one subscriber can bind share one budget | IPv4 is not truncated on purpose (§8.7). Rotating IPv4 needs addresses genuinely acquired, and the deployment ceiling answers that |
 | 3 | Burst flooding of the Server Action | Token bucket in `proxy.ts`, then the database's own count | The bucket is per instance. Deliberate: it is the cheap layer, not the load-bearing one |
-| 4 | Oversized or malformed bodies | `content-length` check in the proxy, `bodySizeLimit` of 64 KB, Zod at the boundary, CHECK constraints in the table | None material. A body that lies about its length is refused by the body limit rather than the header check |
+| 4 | Oversized or malformed bodies | `content-length` check in the proxy, `bodySizeLimit` of 64 KB, Zod at the boundary, CHECK constraints in the table | A body that declares no length at all is refused one layer later and less gracefully — see §8.5. Nothing is written either way |
 | 5 | Naive bots submitting every input they find | Honeypot field, answered as a success so the bot learns nothing | A bot that renders the page and respects `aria-hidden` gets past it and meets the rate limits instead |
 | 6 | Using the form to test whether an address is registered | The function returns `accepted` for a duplicate exactly as for a new row; `on conflict do nothing` | None. The queue cannot be read, counted, or probed through any exposed object |
 | 7 | Reading or tampering with the queue | Schema not exposed to PostgREST; no privilege for `anon` or `authenticated`; RLS on with no policies | None known. Enumerated in `tests/rls/early-access.test.ts` |
 | 8 | Raising the limits or registering a key from outside | `access.intake_keys` and `access.intake_limits` are as unreachable as the queue | None known |
-| 9 | Correlating submissions to people from the counters | `client_hash` is an HMAC of the address and the UTC date, and the column's constraint accepts nothing else | Someone holding both the intake key and the database could test a guessed address against a same-day row |
+| 9 | Correlating submissions to people from the counters | `access.intake_counters.bucket` is an HMAC of the caller's network and the UTC date, and the column's constraint accepts nothing else | Someone holding both the intake key and the database could test a guessed network against a same-day row |
 | 10 | Volumetric denial of service | Not answered in application code | Real, and out of scope here. See §5 |
 | 11 | Cross-site request forgery | Next.js verifies `Origin` against `Host` for every Server Action | None material. Do not add `allowedOrigins` without a specific reason |
 | 12 | Exposing personal data through logs | The log record is a closed shape with no field for a name, address, email or message | A database error message could quote the failing row, so only the error *code* is logged |
@@ -100,8 +103,14 @@ update access.intake_limits
 ```
 
 Defaults: five per caller per fifteen minutes, two hundred across the deployment
-per hour, attempts remembered for twenty-four hours. Every column is bounded, so
+per hour, counters remembered for twenty-four hours. Every column is bounded, so
 the door cannot be configured shut or configured away.
+
+Both windows are fixed rather than sliding: `access.intake_window()` floors the
+current instant to a multiple of the window, and that instant is part of the
+counter's primary key. Lowering a limit therefore applies to the next increment,
+not retroactively — a bucket already above a newly lowered `per_client_max` stops
+admitting immediately, because the limit is the increment's own condition.
 
 ## 4. Bot mitigation: why there is no CAPTCHA
 
@@ -152,6 +161,9 @@ Recommended on Vercel Firewall, roughly in the order worth adding them:
    to `GET`: the page should stay readable by anything, including archivers.
 5. **A persistent action on repeated denials** so an address that has been refused
    many times keeps being refused, rather than being counted afresh each minute.
+6. **A request-size rule on `POST /early-access`**, around 64 KB to match
+   `bodySizeLimit`. This is the only layer that can refuse an oversized body whose
+   length the request never declares — §8.5 explains why the edge check cannot.
 
 Deliberately **not** recommended:
 
@@ -197,9 +209,12 @@ noticing:
 - `client` — the keyed digest, absent for events raised at the edge, which has no
   key to compute one with.
 - `fields` — the names of fields a submission failed on. Never their contents.
-- `code` — a database error code where there was one. Never its message: a check
-  violation is entitled to quote the row that caused it, and that row is
-  somebody's answers.
+- `code` — a database error code where the call itself raised one, such as a lost
+  connection. Never its message: a check violation is entitled to quote the row
+  that caused it, and that row is somebody's answers. A submission the queue's own
+  constraints refuse is answered `failed` with no code, because the function
+  catches it in order to keep the count it spent; the `SQLSTATE` is raised as a
+  PostgreSQL warning and so lands in the database log rather than this one.
 
 There is no field for a name, an address, an email or a message. The record is a
 closed shape in `lib/early-access/log.ts`, so adding one means editing the file
@@ -213,7 +228,8 @@ Useful questions and the answers to look for:
 | --- | --- |
 | Is the form working? | A steady trickle of `accepted`, and no `unconfigured` |
 | Did somebody forget the key? | `unconfigured`, or `refused` immediately after a deploy |
-| Is something trying? | `throttled` and `burst`, and `select outcome, count(*) from access.intake_attempts group by outcome` |
+| Is something trying? | `throttled` and `burst`, and `select window_start, sum(admitted), sum(refused) from access.intake_counters where bucket <> 'deployment' group by window_start order by window_start desc` |
+| How close is the deployment to its ceiling? | `select window_start, admitted, refused from access.intake_counters where bucket = 'deployment' order by window_start desc limit 24` |
 | Is the form confusing? | `invalid` with the same `fields` over and over |
 
 ## 8. Residual risks, accepted knowingly
@@ -226,20 +242,54 @@ Useful questions and the answers to look for:
    rejected form.
 2. **The token bucket is per instance.** Stated in `lib/early-access/limits.ts` and
    here, and the reason the database's count exists.
-3. **The global ceiling is a shared fate.** Two hundred requests an hour from one
-   actor refuses everybody else until the window passes. Raising it trades that
-   for a larger queue to clean; the ceiling is data so the trade can be made in
-   the moment.
+3. **The global ceiling is a shared fate.** Two hundred *admitted* requests an
+   hour from one actor refuses everybody else until the window turns over. Raising
+   it trades that for a larger queue to clean; the ceiling is data so the trade can
+   be made in the moment. What is no longer true is that refusals sustain it: only
+   an admitted call increments `admitted`, and a caller over their own limit
+   returns before the deployment's counter is touched. So the cost of holding the
+   door shut is two hundred admitted rows an hour rather than two hundred refusals
+   from one address, which is what it used to be. Reaching the ceiling now costs an
+   attacker the same as reaching it legitimately.
 4. **The intake key is a shared secret in two places.** If it leaks, an attacker
    regains the ability to write to the queue at the metered rate — not to read
    anything, and not to touch any other table. Rotation is one `UPDATE` and one
    environment variable.
-5. **`content-length` is the client's own claim.** A body that understates its
-   length is refused by `bodySizeLimit` rather than by the header check, one layer
-   later and after being read.
+5. **`content-length` is the client's own claim, and a chunked body makes none.**
+   The header check in `proxy.ts` cannot see the size of a body sent with
+   `Transfer-Encoding: chunked`, so an oversized one reaches `bodySizeLimit`
+   instead. Measured against a production build: a 70 KB body *with* the header is
+   the intended `413` and the styled page, and the same payload sent chunked is a
+   bare `500 Internal Server Error`, logged by Next.js rather than as `oversize`.
+   Nothing is validated, recorded or metered on that path, so the cost is one
+   function invocation and a log line the platform will surface as an error. It is
+   deliberately not fixed by refusing bodies with no declared length: a browser
+   form always sends one, but a proxy that drops the header would then be a form
+   that silently rejects real submissions, which is worse than an ugly error page
+   for a crafted request. The answer is the firewall request-size rule in §5, which
+   acts before a function is invoked at all.
 6. **Only `/early-access` is guarded at the edge.** `/login` is rate limited by
    Supabase Auth rather than by this code. Worth revisiting if a firewall rule is
    added, since one rule could cover both.
+7. **IPv4 is metered per address, not per network.** An actor holding many
+   unrelated IPv4 addresses gets `per_client_max` from each, and the deployment
+   ceiling is what stops them. Truncating to a /24 was considered and rejected:
+   that block can be 256 unrelated subscribers of one carrier, so it would refuse
+   strangers for each other's traffic to raise the cost of an attack that already
+   requires buying addresses. The reasoning is in `lib/early-access/client-id.ts`
+   beside the constant.
+8. **Both windows are fixed, so a boundary can be straddled.** A caller who times
+   it sends `per_client_max` in the last second of one window and again in the
+   first second of the next. The edge token bucket caps how fast that can be done,
+   and the design already had this property before the counters existed, because
+   the caller's digest includes the UTC date and so reset at midnight.
+9. **A visitor with no forwarded address shares one bucket with every other.**
+   `clientBucket()` returns null for an absent or unparseable value and the digest
+   falls back to a single `unattributed` bucket. Behind Vercel that is local
+   traffic; behind nothing at all it means a forged `x-forwarded-for` buys one
+   shared budget instead of a private one. Strict in the safe direction, and the
+   reason a deployment that terminates its own TLS must not be trusted to populate
+   that header.
 
 ## 9. Launch checklist
 
@@ -261,7 +311,12 @@ Before `/early-access` is public:
       intended for launch.
 - [ ] A direct `POST` to `/rest/v1/rpc/request_early_access` with the publishable
       key and no `p_key` is refused, and writes nothing.
-- [ ] `npm run verify` green, including `tests/rls/intake-guard.test.ts`.
+- [ ] `npm run verify` green, including `tests/rls/intake-guard.test.ts` and
+      `tests/rls/intake-concurrency.test.ts` — the second one submits in parallel
+      on separate connections, which is the only way the meter's real behaviour
+      shows up.
+- [ ] `access.intake_attempts` gone and `access.intake_counters` present, which is
+      how a project is known to have migration 0005.
 - [ ] Vercel Firewall rate-limit rule on `POST /early-access`, and Attack Challenge
       Mode known to be one switch away.
 - [ ] One submission's log line read in the platform's log view, and confirmed to

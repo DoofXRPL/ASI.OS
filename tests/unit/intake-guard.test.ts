@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createBurstLimiter } from "@/lib/early-access/burst";
 import {
   CLIENT_ID_LENGTH,
+  clientBucket,
   clientIpFromHeaders,
   hashClientId,
   utcDayKey,
@@ -149,6 +150,64 @@ describe("the caller's digest", () => {
   it("keys the day by UTC, so a timezone cannot split one day into two", () => {
     expect(utcDayKey(new Date("2026-07-30T23:59:59.999Z"))).toBe("2026-07-30");
     expect(utcDayKey(new Date("2026-07-31T00:00:00.000Z"))).toBe("2026-07-31");
+  });
+});
+
+describe("what counts as one caller", () => {
+  it("treats an IPv4 address as itself", () => {
+    expect(clientBucket("203.0.113.7")).toBe("203.0.113.7");
+    expect(clientBucket("203.0.113.8")).not.toBe(clientBucket("203.0.113.7"));
+  });
+
+  it("treats every address in one IPv6 /64 as one caller", () => {
+    // The bypass this exists to close. A /64 is the smallest block an IPv6 site
+    // is given, so its eighteen quintillion addresses are one subscriber — and
+    // under the exact-address digest they were eighteen quintillion budgets.
+    const inside = [
+      "2001:db8:abcd:1234::1",
+      "2001:db8:abcd:1234::2",
+      "2001:db8:abcd:1234:ffff:ffff:ffff:ffff",
+      "2001:0db8:abcd:1234:0000:0000:0000:0009",
+      "2001:DB8:ABCD:1234::a",
+    ];
+
+    const buckets = new Set(inside.map((ip) => clientBucket(ip)));
+    expect(buckets.size, "one subscriber is one bucket").toBe(1);
+    expect([...buckets][0]).toBe("2001:db8:abcd:1234::/64");
+  });
+
+  it("keeps neighbouring /64s apart, so one site is not everybody", () => {
+    expect(clientBucket("2001:db8:abcd:1235::1")).not.toBe(clientBucket("2001:db8:abcd:1234::1"));
+  });
+
+  it("reads an IPv4 address written in IPv6 form as the IPv4 address", () => {
+    // Bucketing the /64 of `::ffff:0:0/96` would put every IPv4 visitor in one.
+    expect(clientBucket("::ffff:203.0.113.7")).toBe("203.0.113.7");
+    expect(clientBucket("::ffff:203.0.113.8")).not.toBe(clientBucket("::ffff:203.0.113.7"));
+  });
+
+  it("refuses to make an identity out of something that is not an address", () => {
+    // A forwarded header is only as trustworthy as whatever last wrote it. Where
+    // nothing does, an arbitrary token used to be its own budget; now everything
+    // unparseable shares the one bucket, which is the strict direction.
+    for (const value of ["attacker-token-7", "not an ip", "999.1.1.1", "", "  ", null]) {
+      expect(clientBucket(value), JSON.stringify(value)).toBeNull();
+    }
+  });
+
+  it("puts a rotating attacker and a fixed one in the same bucket", () => {
+    const rotating = Array.from({ length: 500 }, (_, index) =>
+      hashClientId({
+        ip: `2001:db8:1:2::${(index + 1).toString(16)}`,
+        dayKey: "2026-07-30",
+        pepper: "p",
+      }),
+    );
+
+    expect(new Set(rotating).size, "500 addresses, one budget").toBe(1);
+    expect(rotating[0]).toBe(
+      hashClientId({ ip: "2001:db8:1:2::1", dayKey: "2026-07-30", pepper: "p" }),
+    );
   });
 });
 
@@ -315,19 +374,61 @@ describe("the application and the migration agree about the door", () => {
     );
   });
 
-  it("constrains the counter to the digest this code produces", () => {
-    expect(migration).toContain("check (client_hash ~ '^[0-9a-f]{32}$')");
-    expect(hashClientId({ ip: "203.0.113.7", dayKey: "2026-07-30", pepper: "p" })).toMatch(
-      /^[0-9a-f]{32}$/,
-    );
-  });
-
-  it("keeps the counters and the key digests out of reach of the API roles", () => {
-    for (const table of ["intake_keys", "intake_limits", "intake_attempts"]) {
+  it("keeps the key digests and the thresholds out of reach of the API roles", () => {
+    for (const table of ["intake_keys", "intake_limits"]) {
       expect(migration).toContain(
         `revoke all on access.${table} from public, anon, authenticated;`,
       );
       expect(migration).toContain(`alter table access.${table} enable row level security;`);
     }
+  });
+});
+
+describe("the meter counts atomically", () => {
+  const migration = readFileSync(
+    join(process.cwd(), "supabase", "migrations", "0005_intake_meter_is_atomic.sql"),
+    "utf8",
+  );
+
+  it("constrains the bucket to the digest this code produces", () => {
+    expect(migration).toContain("check (bucket = 'deployment' or bucket ~ '^[0-9a-f]{32}$')");
+    expect(hashClientId({ ip: "203.0.113.7", dayKey: "2026-07-30", pepper: "p" })).toMatch(
+      /^[0-9a-f]{32}$/,
+    );
+  });
+
+  it("keeps the counters out of reach of the API roles", () => {
+    expect(migration).toContain(
+      "revoke all on access.intake_counters from public, anon, authenticated;",
+    );
+    expect(migration).toContain(
+      "alter table access.intake_counters enable row level security;",
+    );
+  });
+
+  it("decides with the increment rather than with a number read before it", () => {
+    // The whole fix, in one clause. `where c.admitted < …` is what makes the
+    // limit the increment's own condition instead of something checked first and
+    // acted on afterwards, and it is why a refused call increments nothing.
+    expect(migration).toContain("on conflict (bucket, window_start) do update");
+    expect(migration).toContain("where c.admitted < v_limits.per_client_max");
+    expect(migration).toContain("where c.admitted < v_limits.global_max");
+
+    // Nothing may count rows to decide anything: that is the shape that both
+    // raced and grew with the flood.
+    expect(migration).not.toMatch(/select\s+count\(\*\)\s+into/i);
+  });
+
+  it("leaves no table that records one row per call", () => {
+    expect(migration).toContain("drop table if exists access.intake_attempts;");
+  });
+
+  it("records the count before the submission it belongs to can fail", () => {
+    // A submission the queue refuses used to roll back the counter spent on it,
+    // which made such a request unmetered. The exception block is what keeps the
+    // count once it has been made.
+    const body = migration.slice(migration.indexOf("-- ── The submission"));
+    expect(body).toContain("when data_exception or integrity_constraint_violation then");
+    expect(body).toContain("return 'failed';");
   });
 });
