@@ -259,9 +259,14 @@ entitled to quote the row that failed, and that row is somebody's answers.
 ## Consequences
 
 - The two thresholds are exact under concurrency. `npm run test:rls` includes
-  `tests/rls/intake-concurrency.test.ts`, which submits from up to a hundred real
-  connections rather than one, and asserts the exact limit; the first table above
-  is what the same calls do without 0005.
+  `tests/rls/intake-concurrency.test.ts`, which submits from 32 real connections
+  rather than one and asserts the exact limit; the first table above is what the
+  same calls do without 0005. 32 rather than more because the suite has to run
+  against a stock PostgreSQL server, which allows 100 connections in total — and
+  rather than fewer because 8 was where the race became detectable every time out
+  of twenty. Restoring the check-then-act algorithm over the same counters table
+  fails six of that file's nine tests, which is how the width is known to be
+  enough.
 - The deployment-wide ceiling can no longer be held shut by traffic it is
   refusing. Under the attack that previously locked out a first-time visitor, that
   visitor is now accepted.

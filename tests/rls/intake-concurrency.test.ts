@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import {
   connect,
   inParallel,
+  MAX_PARALLEL_CALLERS,
   registerIntakeKey,
   testClientHash,
   withParallelAnon,
@@ -21,6 +22,12 @@ import {
  *
  * Everything here commits, so each test cleans up after itself rather than
  * relying on a rollback.
+ *
+ * Width is `MAX_PARALLEL_CALLERS`, which is 32 and not more for a reason recorded
+ * beside the constant: a stock PostgreSQL server allows 100 connections in total,
+ * and this suite promises to run against one. The number is far above what it
+ * takes to catch the defect — 8 concurrent callers caught it 20 times out of 20 —
+ * so the ceiling costs nothing but the ability to write a test that cannot run.
  *
  * See supabase/migrations/0005_intake_meter_is_atomic.sql.
  */
@@ -75,38 +82,38 @@ const email = (index: number): string =>
   `concurrent-${index}-${Math.random().toString(36).slice(2, 10)}@example.com`;
 
 describe("the per-caller limit holds against callers arriving at once", () => {
-  it("admits exactly the limit out of forty simultaneous calls", async () => {
+  it("admits exactly the limit out of a burst from one caller", async () => {
     await setLimits({ per_client_max: "5", global_max: "1000" });
     const client = testClientHash();
 
-    const outcomes = await withParallelAnon(40, (clients) =>
+    const outcomes = await withParallelAnon(MAX_PARALLEL_CALLERS, (clients) =>
       inParallel(clients, CALL, (index) => [KEY, client, email(index)]),
     );
 
     // The number that matters is the rows, not the answers: a meter that admits
     // more than it says is one that let rows through.
     expect(await queued()).toBe(5);
-    expect(tally(outcomes)).toEqual({ accepted: 5, throttled: 35 });
+    expect(tally(outcomes)).toEqual({ accepted: 5, throttled: MAX_PARALLEL_CALLERS - 5 });
   });
 
-  it("admits exactly the limit out of a hundred simultaneous calls", async () => {
-    // The failure this replaces got worse with concurrency rather than better,
-    // so the higher number is the load-bearing one.
-    await setLimits({ per_client_max: "3", global_max: "1000" });
+  it("admits exactly one when the limit is one, which is the narrowest race", async () => {
+    // A limit of 1 leaves no margin at all: every caller but one has to lose, and
+    // they are deciding simultaneously. The check-then-act meter admitted several.
+    await setLimits({ per_client_max: "1", global_max: "1000" });
     const client = testClientHash();
 
-    await withParallelAnon(100, (clients) =>
+    await withParallelAnon(MAX_PARALLEL_CALLERS, (clients) =>
       inParallel(clients, CALL, (index) => [KEY, client, email(index)]),
     );
 
-    expect(await queued()).toBe(3);
+    expect(await queued()).toBe(1);
   });
 
   it("never records more admissions than the threshold in force", async () => {
     await setLimits({ per_client_max: "4", global_max: "1000" });
     const client = testClientHash();
 
-    await withParallelAnon(30, (clients) =>
+    await withParallelAnon(MAX_PARALLEL_CALLERS, (clients) =>
       inParallel(clients, CALL, (index) => [KEY, client, email(index)]),
     );
 
@@ -115,7 +122,7 @@ describe("the per-caller limit holds against callers arriving at once", () => {
       [client],
     );
     expect(rows[0]?.admitted, "the count cannot exceed the limit that gates it").toBe(4);
-    expect(rows[0]?.refused).toBe(26);
+    expect(rows[0]?.refused).toBe(MAX_PARALLEL_CALLERS - 4);
   });
 
   it("counts one caller separately from another under the same load", async () => {
@@ -123,7 +130,7 @@ describe("the per-caller limit holds against callers arriving at once", () => {
     const first = testClientHash();
     const second = testClientHash();
 
-    await withParallelAnon(40, (clients) =>
+    await withParallelAnon(MAX_PARALLEL_CALLERS, (clients) =>
       inParallel(clients, CALL, (index) => [
         KEY,
         index % 2 === 0 ? first : second,
@@ -136,10 +143,12 @@ describe("the per-caller limit holds against callers arriving at once", () => {
 });
 
 describe("the deployment-wide ceiling holds against callers arriving at once", () => {
-  it("admits exactly the ceiling out of sixty simultaneous distinct callers", async () => {
+  it("admits exactly the ceiling out of simultaneous distinct callers", async () => {
+    // Every caller is under their own limit here, so the ceiling is the only thing
+    // that can refuse anybody — and three times as many arrive as it allows.
     await setLimits({ per_client_max: "1000", global_max: "10" });
 
-    await withParallelAnon(60, (clients) =>
+    await withParallelAnon(MAX_PARALLEL_CALLERS, (clients) =>
       inParallel(clients, CALL, (index) => [KEY, testClientHash(), email(index)]),
     );
 
@@ -152,7 +161,7 @@ describe("the deployment-wide ceiling holds against callers arriving at once", (
     await setLimits({ per_client_max: "2", global_max: "50" });
     const client = testClientHash();
 
-    await withParallelAnon(30, (clients) =>
+    await withParallelAnon(MAX_PARALLEL_CALLERS, (clients) =>
       inParallel(clients, CALL, (index) => [KEY, client, email(index)]),
     );
 
@@ -179,9 +188,9 @@ describe("a refusal is not the reason for the next refusal", () => {
     );
     expect(before.rows[0]?.admitted).toBe(3);
 
-    // Forty more refused knocks, which under the old meter would have taken the
-    // window to forty-three and kept it there.
-    const outcomes = await withParallelAnon(40, (clients) =>
+    // More refused knocks, which under the old meter would have taken the window
+    // to 3 + however many knocked, and kept it there.
+    const outcomes = await withParallelAnon(MAX_PARALLEL_CALLERS, (clients) =>
       inParallel(clients, CALL, (index) => [KEY, testClientHash(), email(100 + index)]),
     );
     expect(new Set(outcomes)).toEqual(new Set(["throttled"]));
@@ -190,7 +199,9 @@ describe("a refusal is not the reason for the next refusal", () => {
       `select admitted, refused from ${COUNTERS} where bucket = 'deployment'`,
     );
     expect(after.rows[0]?.admitted, "knocking cannot raise the ceiling's own count").toBe(3);
-    expect(after.rows[0]?.refused, "the refusals are recorded, and decide nothing").toBe(40);
+    expect(after.rows[0]?.refused, "the refusals are recorded, and decide nothing").toBe(
+      MAX_PARALLEL_CALLERS,
+    );
   });
 
   it("lets the next window in, however hard the last one was knocked on", async () => {

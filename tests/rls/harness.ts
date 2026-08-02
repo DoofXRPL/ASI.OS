@@ -123,12 +123,72 @@ export function testClientHash(): string {
 }
 
 /**
+ * The most connections any one test may hold at once.
+ *
+ * This suite runs against plain PostgreSQL 14+ — that is the promise in
+ * tests/rls/README.md and AGENTS.md, and CI keeps it by using a stock
+ * `postgres:16` container. A stock server allows 100 connections in total, so a
+ * test that wants a hundred of them cannot run in the environment the suite
+ * claims to need, and the first version of this file asked for exactly that.
+ *
+ * 32 is chosen against measurement rather than taste. Against the check-then-act
+ * meter this suite exists to catch, with `per_client_max` 5 and 20 runs at each
+ * width: 4 connections never caught the race, 6 caught it 19 times out of 20, and
+ * 8 caught it every time. 32 is four times the width that is already reliable and
+ * about a third of the smallest budget the suite supports, which leaves room for
+ * the admin connection every file holds and for whatever else shares the server.
+ *
+ * Fixed rather than derived from the server's own limit, so a run that passes here
+ * means the same thing as a run that passes in CI.
+ */
+export const MAX_PARALLEL_CALLERS = 32;
+
+/** Read once: it cannot change under a running server. */
+let connectionBudget: Promise<number> | null = null;
+
+/**
+ * How many connections this server will actually give us.
+ *
+ * Without this, asking for more than the server has produces a cascade rather
+ * than a diagnosis: `Promise.all` rejects with `53300`, and every later test in
+ * the file fails too because the connections that *did* open are still held. The
+ * message names the setting to change, since that is the only useful thing to say.
+ */
+async function assertBudgetFor(count: number, url: string): Promise<void> {
+  connectionBudget ??= (async () => {
+    const client = await connect(url);
+    try {
+      const { rows } = await client.query<{ name: string; setting: string }>(
+        `select name, setting from pg_settings
+          where name in ('max_connections', 'superuser_reserved_connections')`,
+      );
+      const setting = (name: string) =>
+        Number(rows.find((row) => row.name === name)?.setting ?? 0);
+      return setting("max_connections") - setting("superuser_reserved_connections");
+    } finally {
+      await client.end();
+    }
+  })();
+
+  // One spare for the admin connection each suite holds, and one for this check.
+  const needed = count + 2;
+  const available = await connectionBudget;
+  if (needed > available) {
+    throw new Error(
+      `This test needs ${count} concurrent connections and the server offers ${available}.\n` +
+        `Raise max_connections to at least ${needed + 8} and restart it, ` +
+        `or see tests/rls/README.md.`,
+    );
+  }
+}
+
+/**
  * Several independent `anon` connections, each committing its own work.
  *
  * `asAnon` runs everything on one connection inside a transaction that is rolled
  * back, which is right for testing what a role may touch and blind to anything
  * decided *between* transactions. A limit that is read and then acted on looks
- * correct from a single connection and holds nothing at all from forty — so
+ * correct from a single connection and holds nothing at all from thirty — so
  * proving a limit holds needs real backends, committing for real.
  *
  * The caller is responsible for cleaning up, since nothing here is rolled back.
@@ -138,18 +198,32 @@ export async function withParallelAnon<T>(
   work: (clients: Client[]) => Promise<T>,
   url = resolveDatabaseUrl(),
 ): Promise<T> {
-  const clients = await Promise.all(
-    Array.from({ length: count }, async () => {
-      const client = await connect(url);
-      // Downgraded for the life of the connection, not for a transaction, so the
-      // statement under test runs in its own implicit transaction — exactly as
-      // PostgREST runs one RPC call.
-      await client.query("set role anon");
-      return client;
-    }),
-  );
+  if (count > MAX_PARALLEL_CALLERS) {
+    throw new Error(
+      `${count} concurrent callers exceeds MAX_PARALLEL_CALLERS (${MAX_PARALLEL_CALLERS}). ` +
+        "The constant is what keeps this suite runnable on a stock PostgreSQL server; " +
+        "read the note beside it before raising it.",
+    );
+  }
+  await assertBudgetFor(count, url);
 
+  const clients: Client[] = [];
   try {
+    // Collected as they open, so a failure part-way through still closes the ones
+    // that did. Opening them inside `Promise.all` and assigning afterwards leaks
+    // every connection when any single one is refused, which is how one
+    // over-budget test used to take the rest of the file down with it.
+    await Promise.all(
+      Array.from({ length: count }, async () => {
+        const client = await connect(url);
+        clients.push(client);
+        // Downgraded for the life of the connection, not for a transaction, so
+        // the statement under test runs in its own implicit transaction —
+        // exactly as PostgREST runs one RPC call.
+        await client.query("set role anon");
+      }),
+    );
+
     return await work(clients);
   } finally {
     await Promise.all(clients.map((client) => client.end().catch(() => undefined)));
