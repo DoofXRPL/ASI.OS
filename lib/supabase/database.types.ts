@@ -172,12 +172,19 @@ export type Database = {
        * `access` schema, which is not exposed to PostgREST, so it is absent
        * from `Tables` above and unreachable from `.from()` — deliberately.
        *
-       * `Returns: undefined` mirrors `returns void`: there is nothing to read
-       * back, so this cannot be used to learn whether an address is already
-       * recorded.
+       * `p_key` and `p_client` are required rather than optional, so a call that
+       * omits either does not compile. That matters more here than it looks:
+       * `p_key` is what stops the publishable key alone from being enough to
+       * write to the queue, and `p_client` is what the rate limit counts.
+       *
+       * `Returns: string` is one of `accepted`, `throttled`, `refused` or
+       * `unconfigured`. A duplicate address reads as `accepted` like any other,
+       * so this still cannot be used to learn whether an address is on the list.
        */
       request_early_access: {
         Args: {
+          p_key: string;
+          p_client: string;
           p_name: string;
           p_email: string;
           p_use_case: string;
@@ -186,7 +193,7 @@ export type Database = {
           p_team_size?: string | null;
           p_challenge?: string | null;
         };
-        Returns: undefined;
+        Returns: string;
       };
     };
     Enums: { [_ in never]: never };

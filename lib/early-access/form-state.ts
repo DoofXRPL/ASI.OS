@@ -10,7 +10,17 @@ import type {
  * file may only export async functions — the same reason `lib/auth/form-state.ts`
  * exists.
  */
-export type EarlyAccessStatus = "idle" | "recorded" | "rejected" | "unavailable";
+/**
+ * `throttled` is separated from `rejected` because the two call for different
+ * sentences and different colours. A rejection is about the submission; being
+ * rate limited is about the connection it arrived on, and the answers are fine.
+ */
+export type EarlyAccessStatus =
+  | "idle"
+  | "recorded"
+  | "rejected"
+  | "throttled"
+  | "unavailable";
 
 export interface EarlyAccessFormState {
   status: EarlyAccessStatus;

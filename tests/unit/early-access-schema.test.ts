@@ -93,6 +93,28 @@ describe("what a request must contain", () => {
   it("rejects a use case nothing knows about", () => {
     expect(parse({ useCase: "world_domination" }).success).toBe(false);
   });
+
+  it("refuses a character PostgreSQL cannot store", () => {
+    // A NUL byte passed this schema and then aborted the whole database call,
+    // which used to roll back the rate-limit count spent on it — so a submission
+    // carrying one was a free, unmetered request. The database now keeps the
+    // count regardless; this is the boundary refusing the input in the first
+    // place.
+    expect(parse({ name: "Ada\u0000Lovelace" }).success).toBe(false);
+    expect(messageFor(parse({ name: "Ada\u0000Lovelace" }), "name")).toBe(
+      "Remove any special characters and try again.",
+    );
+
+    for (const field of ["company", "otherUseCase", "challenge"] as const) {
+      const result = parse({ useCase: "other", otherUseCase: "ok", [field]: "a\u0000b" });
+      expect(result.success, `${field} must refuse a NUL byte`).toBe(false);
+    }
+  });
+
+  it("still accepts the whitespace a textarea legitimately contains", () => {
+    const result = parse({ challenge: "One line.\nAnother line.\r\n\tIndented." });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe("a radio group that has not been answered", () => {

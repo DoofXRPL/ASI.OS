@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { INTAKE_BODY_SIZE_LIMIT } from "./lib/early-access/limits";
 
 /**
  * ASI OS holds a single person's private records. Every authenticated route is
@@ -26,6 +27,18 @@ const nextConfig: NextConfig = {
   // Next.js 16 no longer runs ESLint during `next build`.
   typescript: {
     ignoreBuildErrors: false,
+  },
+
+  experimental: {
+    /**
+     * Every Server Action in this application is a short form; the longest field
+     * anywhere is a 4000 character capture. Next.js defaults to a megabyte,
+     * which for the one action an unauthenticated stranger can reach is 16 times
+     * more than the form can produce and 16 times more to parse before finding
+     * that out. The proxy refuses the same size from the request headers, so an
+     * oversized body is usually rejected without being read at all.
+     */
+    serverActions: { bodySizeLimit: INTAKE_BODY_SIZE_LIMIT },
   },
 
   async headers() {

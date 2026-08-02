@@ -115,7 +115,13 @@ export function EarlyAccessForm() {
         >
           <form action={formAction} onSubmit={handleSubmit} noValidate className="space-y-10">
             {state.error ? (
-              <FormNotice tone={state.status === "unavailable" ? "attention" : "danger"}>
+              <FormNotice
+                tone={
+                  state.status === "unavailable" || state.status === "throttled"
+                    ? "attention"
+                    : "danger"
+                }
+              >
                 {state.error}
               </FormNotice>
             ) : rejectedFields ? (
@@ -282,7 +288,11 @@ export function EarlyAccessForm() {
   );
 }
 
-/** Amber where the system is at fault, red where the submission was refused. */
+/**
+ * Amber where the system is at fault or is asking for patience, red where the
+ * submission itself was refused. Colour carries meaning here as everywhere: a
+ * rate limit is not the visitor's mistake, and it must not be coloured like one.
+ */
 function FormNotice({
   tone,
   children,

@@ -35,6 +35,14 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/asi_test \
   npm run test:rls
 ```
 
+One requirement beyond a database: `intake-concurrency.test.ts` proves a rate
+limit holds by submitting from `MAX_PARALLEL_CALLERS` real connections at once, so
+the server needs about **40 available connections**. A stock server allows 100 and
+needs no change; a server tuned below that says so, naming the setting, rather than
+failing with `too many clients already`. The constant is deliberately fixed rather
+than derived from the server, so a passing run here means what a passing run in CI
+means — see the note beside it in `harness.ts`.
+
 To rebuild the database without running the suite:
 
 ```bash
@@ -77,6 +85,12 @@ entire suite.
   UPDATE or DELETE privilege, so a user cannot rewrite or erase their own history.
 - **Constraints** — settings must be a JSON object; the audit actor must be one of
   a known set.
+- **The intake meter holds under concurrency** — `intake-concurrency.test.ts` is
+  the one file here that commits rather than rolling back, because a limit read on
+  one connection and acted on by another is invisible to a single transaction. It
+  asserts that both thresholds admit exactly their limit out of a simultaneous
+  burst, that a refusal never raises the count that refused it, and that one caller
+  cannot spend the deployment's budget.
 
 ## Adding a table
 

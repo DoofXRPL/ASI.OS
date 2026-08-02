@@ -34,6 +34,18 @@ const config = [
       "no-console": "off",
     },
   },
+  {
+    /*
+     * The one module in the application whose purpose is to write a line to
+     * stdout. `no-console` exists so that logging is a decision rather than a
+     * habit, and this is where that decision is recorded: an accepted submission
+     * belongs on stdout, not on stderr beside the failures.
+     */
+    files: ["lib/early-access/log.ts"],
+    rules: {
+      "no-console": "off",
+    },
+  },
 ];
 
 export default config;

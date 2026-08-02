@@ -1,37 +1,60 @@
+import { getIntakeKey } from "@/lib/early-access/intake-key";
 import type { EarlyAccessRequest } from "@/lib/schemas/early-access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { WriteResult } from "./result";
 
 /**
  * The one write an unauthenticated visitor can perform.
  *
  * It goes through `public.request_early_access()` rather than a table, because
  * the table lives in the `access` schema and is not exposed to PostgREST at
- * all. The function returns nothing, so there is nothing here to read back:
- * a second submission from the same address is absorbed by the database and
- * looks exactly like the first, which is what keeps the form from becoming a
- * way to test whether an address is already on the list.
+ * all. Two arguments do not come from the form:
  *
- * See supabase/migrations/0003_early_access.sql.
+ *   * `p_key` is the deployment's intake key, and the function refuses any call
+ *     that cannot produce it. Without that, the publishable key would be enough
+ *     to write to the queue directly and every check on this side of the call
+ *     would be a check on a path nobody had to take.
+ *   * `p_client` is a keyed digest of the caller's address, which is what the
+ *     function counts requests against. The address itself never leaves this
+ *     process.
+ *
+ * The outcome is a word rather than a row. A duplicate address still reads as
+ * `accepted`, so this is not a way to test whether an address is on the list;
+ * what the extra outcomes distinguish is the three things a visitor deserves to
+ * be told apart — recorded, rate limited, and not configured.
+ *
+ * See supabase/migrations/0004_intake_guard.sql.
  */
 
-/**
- * Distinguished from a failed write so the page can say which of the two it
- * is. "The database rejected this" and "this deployment has no database" call
- * for different sentences, and guessing between them is how a form ends up
- * blaming the visitor for a missing environment variable.
- */
-export type EarlyAccessWriteFailure = "not_configured" | "rejected";
+export type EarlyAccessOutcome =
+  | "accepted"
+  | "throttled"
+  | "refused"
+  | "unconfigured"
+  | "failed";
+
+export interface EarlyAccessWrite {
+  outcome: EarlyAccessOutcome;
+  /**
+   * The database's own error code where there was one, for the log. Never its
+   * message: a check violation may quote the row that failed, and that row is
+   * somebody's answers.
+   */
+  code: string | null;
+}
 
 export async function recordEarlyAccessRequest(
   request: EarlyAccessRequest,
-): Promise<WriteResult<null> & { reason?: EarlyAccessWriteFailure }> {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    return { ok: false, error: "Supabase is not configured.", reason: "not_configured" };
-  }
+  client: string,
+): Promise<EarlyAccessWrite> {
+  const key = getIntakeKey();
+  if (!key) return { outcome: "unconfigured", code: null };
 
-  const { error } = await supabase.rpc("request_early_access", {
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) return { outcome: "unconfigured", code: null };
+
+  const { data, error } = await supabase.rpc("request_early_access", {
+    p_key: key,
+    p_client: client,
     p_name: request.name,
     p_email: request.email,
     p_use_case: request.useCase,
@@ -41,6 +64,29 @@ export async function recordEarlyAccessRequest(
     p_challenge: request.challenge ?? null,
   });
 
-  if (error) return { ok: false, error: error.message, reason: "rejected" };
-  return { ok: true, data: null };
+  if (error) return { outcome: "failed", code: error.code ?? null };
+  return { outcome: asOutcome(data), code: null };
+}
+
+/**
+ * An answer this code does not recognise is a failure, not a success.
+ *
+ * A future migration that adds an outcome has to add it here too, and until it
+ * does the visitor is told the request could not be recorded — which is the
+ * honest reading of "the database said something we cannot interpret".
+ */
+function asOutcome(value: unknown): EarlyAccessOutcome {
+  switch (value) {
+    case "accepted":
+    case "throttled":
+    case "refused":
+    case "unconfigured":
+    // Returned when the queue itself refused the submission. The function
+    // answers rather than raising so the rate-limit count it already made
+    // survives — see supabase/migrations/0005_intake_meter_is_atomic.sql.
+    case "failed":
+      return value;
+    default:
+      return "failed";
+  }
 }

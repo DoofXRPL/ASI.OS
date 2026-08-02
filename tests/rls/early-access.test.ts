@@ -6,6 +6,9 @@ import {
   connect,
   createUser,
   expectDenied,
+  registerIntakeKey,
+  testClientHash,
+  type RoleContext,
   type TestUser,
 } from "./harness";
 
@@ -27,10 +30,26 @@ import {
  */
 
 const QUEUE = "access.early_access_requests";
-const RPC = "public.request_early_access(text, text, text, text, text, text, text)";
+const RPC =
+  "public.request_early_access(text, text, text, text, text, text, text, text, text)";
 
-/** Named arguments, so a reordered signature fails loudly rather than silently. */
+const KEY = "early-access-suite-key-0123456789abcdef";
+
+/**
+ * Named arguments, so a reordered signature fails loudly rather than silently.
+ *
+ * `p_key` and `p_client` are what 0004 added: a submission has to say which
+ * deployment it came from, and has to give the meter something to count. Both
+ * are filled in here so these tests stay about the queue itself — the door they
+ * now pass through is tested in intake-guard.test.ts.
+ *
+ * `md5(random()::text)` is a fresh caller per call, of exactly the shape
+ * `access.intake_counters.bucket` is constrained to. It means no test in this
+ * file can be rate limited by another, which would turn a change to the
+ * thresholds into a failure in a suite that is not about them.
+ */
 const REQUEST = `public.request_early_access(
+  p_key => '${KEY}', p_client => md5(random()::text),
   p_name => $1, p_email => $2, p_use_case => $3,
   p_company => $4, p_other_use_case => $5, p_team_size => $6, p_challenge => $7
 )`;
@@ -44,6 +63,7 @@ let member: TestUser;
 beforeAll(async () => {
   admin = await connect();
   member = await createUser(admin, "early-access-member@asi.test", "Member");
+  await registerIntakeKey(admin, KEY, "early-access-suite");
 });
 
 afterAll(async () => {
@@ -57,8 +77,37 @@ async function countRows(): Promise<number> {
   return Number(rows[0]?.total ?? -1);
 }
 
+/**
+ * Asserts that the queue refused a submission, and that nothing of it survived.
+ *
+ * The function answers `failed` rather than raising, because since
+ * `0005_intake_meter_is_atomic.sql` the rate-limit count is made before the
+ * insert and must not roll back with it — an attempt nobody counted is an
+ * unlimited one. The constraint is still what refuses the row, which is what
+ * these tests are about; asserting the empty queue as well as the answer is
+ * strictly more than checking for an exception was.
+ */
+async function expectQueueRefuses(
+  ctx: RoleContext,
+  args: (string | null)[],
+  because: string,
+): Promise<void> {
+  const total = async (): Promise<number> => {
+    const { rows } = await ctx.inspect<{ total: number }>(
+      `select count(*)::int as total from ${QUEUE}`,
+    );
+    return rows[0]?.total ?? -1;
+  };
+
+  const before = await total();
+  const { rows } = await ctx.query<{ outcome: string }>(`select ${REQUEST} as outcome`, args);
+
+  expect(rows[0]?.outcome, because).toBe("failed");
+  expect(await total(), `${because}: nothing may be stored`).toBe(before);
+}
+
 describe("the access schema is not part of the user data plane", () => {
-  it("holds exactly the intake table and nothing else", async () => {
+  it("holds the intake table and the front door's own machinery, and nothing else", async () => {
     const { rows } = await admin.query<{ tablename: string }>(
       `select c.relname as tablename
        from pg_class c
@@ -67,7 +116,15 @@ describe("the access schema is not part of the user data plane", () => {
        order by c.relname`,
     );
 
-    expect(rows.map((r) => r.tablename)).toEqual(["early_access_requests"]);
+    // The queue, plus the three tables that lock and meter the door.
+    // Enumerated rather than counted: a table appearing here that nobody named
+    // is exactly what this assertion exists to catch.
+    expect(rows.map((r) => r.tablename)).toEqual([
+      "early_access_requests",
+      "intake_counters",
+      "intake_keys",
+      "intake_limits",
+    ]);
   });
 
   it("matches the column shape the application types expect", async () => {
@@ -116,7 +173,14 @@ describe("the access schema is not part of the user data plane", () => {
     expect(policies).toHaveLength(0);
   });
 
-  it("gives no API role access to the schema or the table", async () => {
+  it("gives no API role access to the schema or any table in it", async () => {
+    const tables = [
+      QUEUE,
+      "access.intake_keys",
+      "access.intake_limits",
+      "access.intake_counters",
+    ];
+
     for (const role of ["anon", "authenticated"]) {
       const { rows: schema } = await admin.query<{ allowed: boolean }>(
         "select has_schema_privilege($1, 'access', 'USAGE') as allowed",
@@ -124,12 +188,16 @@ describe("the access schema is not part of the user data plane", () => {
       );
       expect(rows(schema).allowed, `${role} must not reach the access schema`).toBe(false);
 
-      const { rows: table } = await admin.query<{ allowed: boolean }>(
-        `select bool_or(has_table_privilege($1, $2, priv)) as allowed
-         from unnest(array['SELECT','INSERT','UPDATE','DELETE']) as priv`,
-        [role, QUEUE],
-      );
-      expect(rows(table).allowed, `${role} must hold no privilege on the queue`).toBe(false);
+      for (const table of tables) {
+        const { rows: granted } = await admin.query<{ allowed: boolean }>(
+          `select bool_or(has_table_privilege($1, $2, priv)) as allowed
+           from unnest(array['SELECT','INSERT','UPDATE','DELETE']) as priv`,
+          [role, table],
+        );
+        expect(rows(granted).allowed, `${role} must hold no privilege on ${table}`).toBe(
+          false,
+        );
+      }
     }
   });
 });
@@ -167,19 +235,42 @@ describe("the request function is the only way in", () => {
     });
   });
 
-  it("returns nothing, so it cannot report whether an address is already listed", async () => {
-    const { rows } = await admin.query<{ returns: string; kind: string; definer: boolean }>(
+  it("exists exactly once, so there is no laxer version of it to call", async () => {
+    // 0004 replaced the signature rather than adding to it. An overload without
+    // `p_key` would be a door beside the locked one.
+    const { rows } = await admin.query<{ returns: string; definer: boolean; args: string }>(
       `select pg_get_function_result(p.oid) as returns,
-              p.prokind as kind,
-              p.prosecdef as definer
+              p.prosecdef as definer,
+              pg_get_function_identity_arguments(p.oid) as args
        from pg_proc p
        join pg_namespace n on n.oid = p.pronamespace
        where n.nspname = 'public' and p.proname = 'request_early_access'`,
     );
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.returns).toBe("void");
     expect(rows[0]?.definer).toBe(true);
+    expect(rows[0]?.args).toBe(
+      "p_key text, p_client text, p_name text, p_email text, p_use_case text, " +
+        "p_company text, p_other_use_case text, p_team_size text, p_challenge text",
+    );
+  });
+
+  it("says only which of four things happened, never whether an address was new", async () => {
+    await asAnon(admin, async ({ query }) => {
+      const first = await query<{ outcome: string }>(
+        `select ${REQUEST} as outcome`,
+        ["First", "oracle@example.com", "research", null, null, null, null],
+      );
+      const second = await query<{ outcome: string }>(
+        `select ${REQUEST} as outcome`,
+        ["Second", "oracle@example.com", "research", null, null, null, null],
+      );
+
+      // The second call inserted nothing. It is answered identically anyway,
+      // which is what stops the form from being a way to test an address.
+      expect(first.rows[0]?.outcome).toBe("accepted");
+      expect(second.rows[0]?.outcome).toBe("accepted");
+    });
   });
 
   it("pins its search_path, as every function in this project must", async () => {
@@ -295,44 +386,32 @@ describe("what the database will and will not record", () => {
   });
 
   it("rejects a use case it does not know", async () => {
-    await asAnon(admin, async ({ query }) => {
-      const denial = await expectDenied(() =>
-        query(`select ${REQUEST}`, [
-          "Unknown",
-          "unknown@example.com",
-          "world_domination",
-          null,
-          null,
-          null,
-          null,
-        ]),
+    // Refused by early_access_use_case_known, which is a constraint and not the
+    // Zod schema: this is the path that does not go through the form.
+    await asAnon(admin, async (ctx) => {
+      await expectQueueRefuses(
+        ctx,
+        ["Unknown", "unknown@example.com", "world_domination", null, null, null, null],
+        "an unknown use case",
       );
-      // 23514 = check_violation, from early_access_use_case_known.
-      expect(denial.code).toBe("23514");
     });
   });
 
   it("requires an explanation when the use case is 'other'", async () => {
-    await asAnon(admin, async ({ query }) => {
-      const denial = await expectDenied(() =>
-        query(`select ${REQUEST}`, [
-          "Other",
-          "other@example.com",
-          "other",
-          null,
-          null,
-          null,
-          null,
-        ]),
+    await asAnon(admin, async (ctx) => {
+      await expectQueueRefuses(
+        ctx,
+        ["Other", "other@example.com", "other", null, null, null, null],
+        "'other' with nothing said",
       );
-      expect(denial.code).toBe("23514");
     });
   });
 
   it("refuses an explanation attached to a category that is not 'other'", async () => {
-    await asAnon(admin, async ({ query }) => {
-      const denial = await expectDenied(() =>
-        query(`select ${REQUEST}`, [
+    await asAnon(admin, async (ctx) => {
+      await expectQueueRefuses(
+        ctx,
+        [
           "Mismatch",
           "mismatch@example.com",
           "research",
@@ -340,9 +419,9 @@ describe("what the database will and will not record", () => {
           "This describes something else entirely.",
           null,
           null,
-        ]),
+        ],
+        "an explanation that contradicts the category",
       );
-      expect(denial.code).toBe("23514");
     });
   });
 
@@ -366,42 +445,73 @@ describe("what the database will and will not record", () => {
   });
 
   it("rejects a team size it does not know", async () => {
-    await asAnon(admin, async ({ query }) => {
-      const denial = await expectDenied(() =>
-        query(`select ${REQUEST}`, [
-          "Bad size",
-          "size@example.com",
-          "research",
-          null,
-          null,
-          "a_few_hundred",
-          null,
-        ]),
+    await asAnon(admin, async (ctx) => {
+      await expectQueueRefuses(
+        ctx,
+        ["Bad size", "size@example.com", "research", null, null, "a_few_hundred", null],
+        "an unknown team size",
       );
-      expect(denial.code).toBe("23514");
     });
   });
 
   it("rejects an address that is obviously not one", async () => {
     for (const email of ["nope", "no@domain", "two@@at.com", "spaced out@example.com"]) {
-      await asAnon(admin, async ({ query }) => {
-        const denial = await expectDenied(() =>
-          query(`select ${REQUEST}`, ["Bad", email, "research", null, null, null, null]),
+      await asAnon(admin, async (ctx) => {
+        await expectQueueRefuses(
+          ctx,
+          ["Bad", email, "research", null, null, null, null],
+          `"${email}"`,
         );
-        expect(denial.code, `"${email}" should be refused`).toBe("23514");
       });
     }
   });
 
   it("rejects a blank name and an over-long one", async () => {
     for (const name of ["   ", "n".repeat(121)]) {
-      await asAnon(admin, async ({ query }) => {
-        const denial = await expectDenied(() =>
-          query(`select ${REQUEST}`, [name, "long@example.com", "research", null, null, null, null]),
+      await asAnon(admin, async (ctx) => {
+        await expectQueueRefuses(
+          ctx,
+          [name, "long@example.com", "research", null, null, null, null],
+          `a name of ${name.length} characters`,
         );
-        expect(denial.code).toBe("23514");
       });
     }
+  });
+
+  it("still counts a submission the queue itself refused", async () => {
+    // Before 0005 the count was made *after* the insert, so a constraint
+    // violation rolled it back and the call cost the caller nothing. Twenty free
+    // requests is twenty requests the meter never saw, which matters most in the
+    // case the meter exists for: somebody who has the intake key and is not this
+    // deployment. Nothing here goes through the form, which is the point — the
+    // Zod schema refuses all of this and an attacker does not use it.
+    await asAnon(admin, async ({ query, inspect }) => {
+      const client = testClientHash();
+      await inspect("update access.intake_limits set per_client_max = 5");
+
+      const outcomes: string[] = [];
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const { rows } = await query<{ outcome: string }>(
+          `select public.request_early_access(
+             p_key => '${KEY}', p_client => $1,
+             p_name => 'Malformed', p_email => $2, p_use_case => 'world_domination'
+           ) as outcome`,
+          [client, `free-${attempt}@example.com`],
+        );
+        outcomes.push(String(rows[0]?.outcome));
+      }
+
+      // The first five are counted and refused by the queue; the rest are refused
+      // by the meter, which is the whole point of counting them.
+      expect(outcomes.slice(0, 5)).toEqual(Array.from({ length: 5 }, () => "failed"));
+      expect(new Set(outcomes.slice(5))).toEqual(new Set(["throttled"]));
+
+      const { rows: counters } = await inspect<{ admitted: number }>(
+        "select admitted from access.intake_counters where bucket = $1",
+        [client],
+      );
+      expect(counters[0]?.admitted, "a failure that costs nothing is unmetered").toBe(5);
+    });
   });
 
   it("rejects a triage status nothing knows how to read", async () => {
@@ -417,9 +527,11 @@ describe("what the database will and will not record", () => {
   it("leaves nothing behind when a request is refused", async () => {
     const before = await countRows();
 
-    await asAnon(admin, async ({ query }) => {
-      await expectDenied(() =>
-        query(`select ${REQUEST}`, ["Refused", "nope", "research", null, null, null, null]),
+    await asAnon(admin, async (ctx) => {
+      await expectQueueRefuses(
+        ctx,
+        ["Refused", "nope", "research", null, null, null, null],
+        "a refused submission",
       );
     });
 
