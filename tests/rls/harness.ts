@@ -127,7 +127,7 @@ export function testClientHash(): string {
  *
  * This suite runs against plain PostgreSQL 14+ — that is the promise in
  * tests/rls/README.md and AGENTS.md, and CI keeps it by using a stock
- * `postgres:16` container. A stock server allows 100 connections in total, so a
+ * `postgres:17` container. A stock server allows 100 connections in total, so a
  * test that wants a hundred of them cannot run in the environment the suite
  * claims to need, and the first version of this file asked for exactly that.
  *
