@@ -163,6 +163,8 @@ be added in the phase that needs it, with the evidence that it is needed.
 - [docs/SECURITY.md](docs/SECURITY.md) — the anonymous intake path: threat model,
   layers, failure modes and launch checklist
 - [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) — the approved plan
+- [docs/AUDIT-2026-08-03.md](docs/AUDIT-2026-08-03.md) — what is built, what is
+  wrong with it, and the route to Beta, read at one commit and dated because of it
 - [docs/DECISIONS/](docs/DECISIONS/) — architecture decision records
 
 ## Security notes
