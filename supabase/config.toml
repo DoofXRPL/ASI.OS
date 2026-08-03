@@ -12,7 +12,15 @@ project_id = "asi-os"
 [db]
 port = 54322
 shadow_port = 54320
-major_version = 16
+# Must be a version the CLI supports *and* the version the hosted project runs
+# (`show server_version;`). The CLI validates this before it starts anything, so a
+# number it does not recognise is not a slow local stack but no local stack at
+# all: `supabase start`, `db reset`, `db push` and `status` all fail with
+# `Failed reading config: Invalid db.major_version`. 16 is not an accepted value —
+# on CLI 2.111.0 they are 12, 13, 14, 15 and 17 — so every command in the
+# "Getting started" section of the README failed here. 17 is also what the CLI's
+# own `init` template now ships. Guarded by tests/unit/supabase-config.test.ts.
+major_version = 17
 
 [api]
 enabled = true
@@ -29,7 +37,10 @@ max_rows = 1000
 enabled = true
 port = 54323
 
-[inbucket]
+# Where mail the local stack sends is caught, so an invite can be read without
+# leaving the machine. Renamed upstream from `[inbucket]`, which the CLI still
+# accepts and warns about on every command.
+[local_smtp]
 enabled = true
 port = 54324
 
@@ -44,9 +55,20 @@ refresh_token_reuse_interval = 10
 # ASI OS is invite-only from the first commit. Public signup stays off here and
 # in the hosted project; accounts are created by the owner. This is the real
 # access gate — application code is only the second line of defence.
+#
+# This is the setting that enforces it: it becomes `GOTRUE_DISABLE_SIGNUP=true`,
+# which refuses to create an account no matter which provider is asked.
 enable_signup = false
 
 [auth.email]
-enable_signup = false
+# Whether the email provider exists at all, despite the name: it has mapped to
+# `GOTRUE_EXTERNAL_EMAIL_ENABLED` rather than `GOTRUE_DISABLE_SIGNUP`. False
+# therefore turns off email sign-*in* as well as sign-up, and the owner — whose
+# account is created by hand and who has no other provider — is refused with
+# `email_provider_disabled` (supabase/supabase#40582). Invite-only is
+# `[auth] enable_signup = false` above with this left true, which is the
+# combination the CLI's own template names for it.
+# Guarded by tests/unit/supabase-config.test.ts.
+enable_signup = true
 double_confirm_changes = true
 enable_confirmations = true
