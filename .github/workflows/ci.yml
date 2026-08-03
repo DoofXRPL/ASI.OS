@@ -18,9 +18,14 @@ jobs:
     # isolation boundary in this product and mocks cannot prove it holds.
     # A service container is used rather than the Supabase CLI so the required
     # gate stays fast and needs no Docker-in-Docker.
+    #
+    # The major version matches `db.major_version` in supabase/config.toml, which
+    # is in turn the version the Supabase CLI runs locally and a current hosted
+    # project runs. The suite supports 14+ and passes on 16 and 17; matching means
+    # the version that proves the policies is the version that enforces them.
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
