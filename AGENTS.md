@@ -2,6 +2,23 @@
 
 Guidance for AI agents working in this repository.
 
+> ## The direction has changed — read this first
+>
+> As of 2026-08-10 this repository is being revamped into a **private AI
+> workspace**: chat as the front door, a server-owned tool registry, and visible
+> memory, built on the security spine described below.
+> **[docs/ODYSSEY-BLUEPRINT.md](docs/ODYSSEY-BLUEPRINT.md) is the plan of record**
+> and supersedes this file's "What this product is" and "Current state" sections,
+> and `docs/IMPLEMENTATION_PLAN.md` §3–§4 and §15–§18.
+>
+> Two things did **not** change, and are the reason the revamp is worth doing here
+> rather than starting over: the **hard rules below still apply in full**, and RLS
+> is still the only isolation boundary.
+>
+> Those sections are rewritten properly in Phase A task 1 of the blueprint. Until
+> that lands, where this file says ASI OS "is not a chatbot", read the blueprint
+> instead — and do not treat the sentence as a reason to refuse chat work.
+
 ## What this product is
 
 ASI OS (Adaptive Systems Interface) is a **private, single-owner personal

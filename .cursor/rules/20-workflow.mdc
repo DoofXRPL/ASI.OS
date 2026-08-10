@@ -1,0 +1,56 @@
+---
+description: How to work in this repository — scope, verification, and what to do when blocked
+alwaysApply: true
+---
+
+# Workflow
+
+## Scope
+
+- **One task, one commit, one conversation.** If a change is sprawling past the files
+  the task named, stop and say the task was too big.
+- **Do not touch files the task did not name** without saying so first.
+- Prefer the smallest change that makes the stated outcome true. This repository has
+  no dead code, no commented-out blocks, and no `TODO`/`FIXME`/`HACK` anywhere in
+  `app/`, `lib/` or `components/`. Keep it that way.
+
+## Verification
+
+`npm run verify` runs typecheck → lint → guard:service-role → unit → RLS → build, in
+CI's order. RLS needs `TEST_DATABASE_URL`; see `AGENTS.md`.
+
+- **A task is not done until verify is green.** Do not report completion before then.
+- **Never make a failing test pass by weakening the test.** The test is the
+  specification. If the specification is wrong, say why and stop.
+- **A guard that has never failed has not been tested.** When adding one, prove it
+  fails on the case it is meant to catch, then remove the scratch case.
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Dev server on port 3000 |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run lint` | ESLint |
+| `npm run test` | Unit tests only — no I/O, always runnable |
+| `npm run test:rls` | RLS tests — needs `TEST_DATABASE_URL` |
+| `npm run guard:service-role` | Fails if app code can bypass RLS |
+| `npm run db:reset` | Rebuild the test database from migrations |
+| `npm run verify` | Everything CI runs, in CI's order |
+
+Use a tmux session for long-running servers.
+
+## When blocked
+
+Say so. Specifically:
+
+- If the task requires breaking a rule in `AGENTS.md` or `.cursor/rules/`, **name the
+  rule and stop.** Do not break it and mention it afterwards.
+- If the blueprint and the code disagree, **the code is right and the blueprint is out
+  of date.** Say which section is stale.
+- If a decision is genuinely the owner's — a model choice, a dependency, a schema
+  tradeoff with no obviously right answer — ask, with a recommendation and the
+  reasoning, rather than picking silently.
+- Do not fabricate a result, a test count, or a passing run. Report what actually
+  happened, including the output.
+</content>

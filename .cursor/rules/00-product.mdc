@@ -1,0 +1,63 @@
+---
+description: What ASI OS is, what it is becoming, and the rules that survive the revamp
+alwaysApply: true
+---
+
+# ASI OS — product context
+
+ASI OS is a **private AI workspace** for one owner and a few invited friends. It is
+being revamped from a manual system of record into a workspace in the shape of
+[Odysseus](https://github.com/pewdiepie-archdaemon/odysseus), built on the security
+spine this repository already has.
+
+**The plan of record is `docs/ODYSSEY-BLUEPRINT.md`. Read it before proposing any
+change.** Where it disagrees with `docs/IMPLEMENTATION_PLAN.md`, the blueprint wins;
+where it disagrees with the code, the code wins and the blueprint is out of date.
+
+## The thesis, in one sentence
+
+Chat is the front door, but **the record is the product**: a conversation captures
+thoughts, creates projects, sets next actions and proposes memory, and every one of
+those writes lands in the same RLS-protected tables the manual surfaces read from,
+with the same append-only audit trail.
+
+## Rules that survive the revamp, and get more work to do
+
+1. **Never fabricate.** No placeholder numbers, no sample data, no metric not read
+   from a record. Every surface renders exactly one state from
+   `components/os/states.tsx`. There is deliberately no component for a fake value.
+   Applied to model output: a claim whose evidence does not resolve to a row the
+   caller owns is **not shown**.
+2. **The human keeps control, and the server decides what that means.** A
+   server-side tool registry (`lib/tools/registry.ts`) determines which tools need
+   approval. A model's own `requiresApproval` claim is advisory and ignored. A tool
+   not in the registry has no implementation to reach.
+3. **RLS is the only isolation boundary.** Application filters are defence in depth,
+   never the mechanism. The app holds no privileged credential.
+4. **Memory is visible, sourced, editable and forgettable.** Suggested memory is
+   never injected into a prompt.
+5. **Progressive disclosure.** One line by default, reasoning on request. Never open
+   with a full trace.
+6. **Structure only when real use earns it.** No vector DB, queue, worker, realtime
+   layer or cron until something measurably needs one, with the evidence named.
+7. **Calm by default; colour carries meaning.** Blue is the system thinking, amber
+   means something needs you, sage means confirmed, red means failed. Nothing is
+   coloured for decoration.
+8. **Wired or absent.** A control that looks real and changes nothing is a trust bug,
+   worse than a missing feature.
+
+## What is deliberately NOT being built
+
+Shell or code execution of any kind (Odysseus can afford it running on one person's
+own machine; a hosted app three people share cannot). Local model serving and the
+Cookbook — there is no GPU in this deployment. Deep Research, Documents, Compare,
+MCP, image generation, email and calendar are Phase G and each is gated on the core
+being good first. Do not build any of them early, and do not build an empty shell
+for one.
+
+## Phase discipline
+
+`docs/ODYSSEY-BLUEPRINT.md` §8 defines phases A through G. **Do not implement a
+later phase than the one being worked on.** If a task seems to require it, say so
+and stop rather than reaching forward.
+</content>
